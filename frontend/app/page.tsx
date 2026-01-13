@@ -88,6 +88,39 @@ export default function Home() {
     }
   }, [autoRefresh, ws, namespace]); // Include namespace in dependencies
 
+  // Track if initial load is complete
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const ns = namespace === 'all' ? 'all' : namespace || undefined;
+      const [healthData, issuesData] = await Promise.all([
+        apiClient.getHealth(ns).catch(err => {
+          console.error('Error loading health:', err);
+          // Return default health on error, but don't overwrite existing data
+          return null;
+        }),
+        apiClient.getIssues(ns).catch(err => {
+          console.error('Error loading issues:', err);
+          return null; // Return null instead of empty array to preserve existing data
+        }),
+      ]);
+      // Only update if we got valid data
+      if (healthData) {
+        setHealth(healthData);
+      }
+      // Only update issues if we got valid data (not null)
+      if (issuesData !== null) {
+        setIssues(issuesData);
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error loading data:', error);
+      }
+      // Don't clear existing data on error
+    }
+  }, [namespace]); // loadData depends on namespace
+
   // Reload issues when namespace changes (if issues are empty)
   useEffect(() => {
     if (namespace && issues.length === 0 && !loading) {
@@ -95,9 +128,6 @@ export default function Home() {
       loadData();
     }
   }, [namespace, issues.length, loading, loadData]); // Include all dependencies
-
-  // Track if initial load is complete
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Reload data when switching sections (but not on initial load)
   useEffect(() => {
@@ -172,35 +202,6 @@ export default function Home() {
     loadInitialData();
   };
 
-  const loadData = async () => {
-    try {
-      const ns = namespace === 'all' ? 'all' : namespace || undefined;
-      const [healthData, issuesData] = await Promise.all([
-        apiClient.getHealth(ns).catch(err => {
-          console.error('Error loading health:', err);
-          // Return default health on error, but don't overwrite existing data
-          return null;
-        }),
-        apiClient.getIssues(ns).catch(err => {
-          console.error('Error loading issues:', err);
-          return null; // Return null instead of empty array to preserve existing data
-        }),
-      ]);
-      // Only update if we got valid data
-      if (healthData) {
-        setHealth(healthData);
-      }
-      // Only update issues if we got valid data (not null)
-      if (issuesData !== null) {
-        setIssues(issuesData);
-      }
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error loading data:', error);
-      }
-      // Don't clear existing data on error
-    }
-  };
 
   const setupWebSocket = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
