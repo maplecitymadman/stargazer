@@ -77,7 +77,7 @@ export default function DeploymentsDetail({ namespace, onClose }: DeploymentsDet
           </div>
         ) : deployments.length === 0 ? (
           <div className="text-center py-10">
-            <Icon name="info" className="text-[#e4e4e7]-dim/60 text-3xl" />
+            <Icon name="info" className="text-space-text-dim/60 text-3xl" />
             <p className="text-[#71717a] mt-2 text-sm">No deployments found</p>
           </div>
         ) : (

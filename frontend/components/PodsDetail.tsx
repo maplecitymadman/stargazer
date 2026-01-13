@@ -45,7 +45,7 @@ export default function PodsDetail({ namespace, onClose }: PodsDetailProps) {
       case 'error':
         return 'text-red-400';
       default:
-        return 'text-[#e4e4e7]-dim';
+        return 'text-space-text-dim';
     }
   };
 
@@ -98,7 +98,7 @@ export default function PodsDetail({ namespace, onClose }: PodsDetailProps) {
           </div>
         ) : filteredPods.length === 0 ? (
           <div className="text-center py-10">
-            <Icon name="info" className="text-[#e4e4e7]-dim/60 text-3xl" />
+            <Icon name="info" className="text-space-text-dim/60 text-3xl" />
             <p className="text-[#71717a] mt-2 text-sm">No pods found</p>
           </div>
         ) : (

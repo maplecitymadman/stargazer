@@ -155,7 +155,7 @@ export default function ResourcesView({ namespace }: ResourcesViewProps) {
 
       {resourceTypes.length === 0 ? (
         <div className="text-center py-10">
-          <Icon name="info" className="text-[#e4e4e7]-dim/60 text-3xl" />
+          <Icon name="info" className="text-space-text-dim/60 text-3xl" />
           <p className="text-[#71717a] mt-2 text-sm">No resources found</p>
         </div>
       ) : (

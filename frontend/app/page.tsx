@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient, ClusterHealth, Issue } from '@/lib/api';
 import HealthMetrics from '@/components/HealthMetrics';
 import IssuesList from '@/components/IssuesList';
@@ -94,7 +94,7 @@ export default function Home() {
       // Namespace was set but issues are empty, reload them
       loadData();
     }
-  }, [namespace]); // Only run when namespace changes
+  }, [namespace, issues.length, loading, loadData]); // Include all dependencies
 
   // Track if initial load is complete
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -105,7 +105,7 @@ export default function Home() {
     if (initialLoadComplete && currentSection && !loading) {
       loadData();
     }
-  }, [currentSection]); // Reload when section changes
+  }, [currentSection, initialLoadComplete, loading, loadData]); // Include all dependencies
 
   const loadInitialData = async (preserveNamespace: boolean = false) => {
     try {
