@@ -1,0 +1,27 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Stargazer",
+  "outputfilename": "Stargazer",
+  "frontend": {
+    "dir": "./frontend",
+    "install": "npm install",
+    "build": "npm run build",
+    "dev": "npm run dev",
+    "bridge": "src/bridge",
+    "serve": "src"
+  },
+  "assetdir": "./frontend/out",
+  "author": {
+    "name": "Stargazer Team",
+    "email": ""
+  },
+  "info": {
+    "productName": "Stargazer",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026",
+    "comments": "Kubernetes troubleshooting tool"
+  },
+  "nsisType": "multiple",
+  "obfuscated": false,
+  "garbleargs": ""
+}

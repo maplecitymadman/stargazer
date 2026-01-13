@@ -1,30 +1,34 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
 
-# Distribution / packaging
-.Python
+# Build artifacts
+bin/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+*.app
+*.dmg
+*.pkg
+*.deb
+*.rpm
 
-# Virtual environments
-venv/
-env/
-ENV/
+# Node (frontend)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+frontend/.cache/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # IDE
 .vscode/
@@ -36,9 +40,17 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+*.tmp
 
-# Kubernetes
+# Kubernetes (local config - don't commit)
 *.kubeconfig
 kubeconfig
 .config/
 .secrets/
+
+# Logs
+*.log
+logs/
+
+# Wails
+.wails/

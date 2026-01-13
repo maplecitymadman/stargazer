@@ -1,178 +1,153 @@
 # Stargazer - Kubernetes Troubleshooting Tool
 
-A lightweight, efficient Kubernetes troubleshooting tool that works like "OpenCode deployed in a cluster".
+A **native desktop application** (like Docker Desktop) and **CLI tool** for Kubernetes troubleshooting. Connects to any cluster via kubeconfig - no cluster deployment needed!
 
 ## 🌟 Features
 
-- **Single Container Deployment**: Simple, resource-efficient deployment (<50m CPU, <64Mi memory)
-- **Auto-Discovery**: Scans cluster every 2 seconds for issues
-- **Agent System**: Specialized troubleshooting agents (@discovery, @logs, @resource, @network, @security)
-- **Dual Interface**: CLI + TUI with OpenCode-style interaction
+- **Standalone Binary**: Single binary that works with any Kubernetes cluster via kubeconfig
+- **No Cluster Deployment Required**: Runs locally, connects to remote or local clusters
+- **Auto-Discovery**: Scans cluster for issues automatically
+- **Multi-Cluster Support**: Switch between Kubernetes contexts
+- **Namespace Filtering**: View resources by namespace or cluster-wide
+- **Theme Support**: Dark, Light, and Auto themes
+- **AI-Powered Troubleshooting**: Configure multiple LLM providers
+- **Dual Interface**: Native desktop app + CLI tool
 - **Read-Only Permissions**: Safe for production environments
-- **Issue Persistence**: Stores issue history in persistent volume
-- **Fast Startup**: Ready in under 5 seconds
+- **Fast & Lightweight**: Minimal resource usage, fast startup
 
 ## 🚀 Quick Start
 
-### Development Mode
+### Desktop App (Recommended)
 
+**macOS/Windows/Linux:**
 ```bash
-# Clone and run demo
-git clone <repository>
-cd stargazer
-python standalone.py --demo
+# Install Wails CLI (if not already installed)
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-# Interactive mode
-python standalone.py --interactive
+# Build desktop app
+make build-gui
+# or
+wails build
+
+# Launch the app (macOS: build/bin/Stargazer.app, Windows: build/bin/Stargazer.exe)
 ```
 
-### Production Deployment
+The desktop app provides a native GUI experience - no browser needed!
+
+### CLI Tool
 
 ```bash
-# Build and deploy
-chmod +x build.sh
-./build.sh --deploy
+# Build CLI
+make build
 
-# Or manual deployment
-docker build -t stargazer:latest .
-kubectl apply -f kustomization.yaml
+# Use commands
+./bin/stargazer health
+./bin/stargazer scan
+./bin/stargazer logs my-pod
 ```
 
-## 🤖 Agent System
+### First Run
 
-### Main Agent: @troubleshooter
-- `scan` - Scan cluster for issues
-- `health` - Get cluster health summary
-- `analyze <resource>` - Analyze specific resource
+**Desktop App:**
+1. Launch Stargazer
+2. App automatically connects to your kubeconfig
+3. Configure AI providers in Settings (optional)
+4. Start troubleshooting!
 
-### Specialized Agents
+**CLI:**
+```bash
+# Verify cluster connection
+./bin/stargazer health
 
-#### @discovery
-- `pods` - List all pods with status
-- `deployments` - Show deployment status
-- `events` - Display recent events
+# Scan for issues
+./bin/stargazer scan
+```
 
-#### @logs
-- `get <pod-name> [lines]` - Get pod logs
-- `errors <pod-name>` - Find error patterns in logs
+See [DESKTOP_APP.md](./DESKTOP_APP.md) for desktop app details.
 
-#### @resource
-- `top` - Resource usage analysis
-- `pressure` - Check resource pressure
-- `describe <type> <name>` - Describe resource
-
-#### @network
-- `connectivity` - Check network connectivity
-- `policies` - Show network policies
-- `endpoints` - Display service endpoints
-
-#### @security
-- `rbac` - Check RBAC permissions
-- `secrets` - Analyze secret configurations
-- `images` - Image security scanning
-
-## 🎮 Interface Modes
-
-### CLI Mode
+## 📋 CLI Commands
 
 ```bash
-# Scan cluster
-stargazer scan --continuous --interval 2
-
-# Interactive troubleshooting
-stargazer ask
-
-# Check health
+# Health check
 stargazer health
 
-# Get logs
-stargazer logs web-app-123 --lines 100
+# Scan cluster for issues
+stargazer scan
 
-# Execute agent command
-stargazer exec "@discovery pods"
+# Get pod logs
+stargazer logs <pod-name> [--namespace <ns>] [--lines <n>]
+
+# List pods
+stargazer pods [--namespace <ns>]
+
+# List deployments
+stargazer deployments [--namespace <ns>]
+
+# Get events
+stargazer events [--namespace <ns>]
+
+# Configuration
+stargazer config setup    # Interactive setup wizard
+stargazer config show     # Show current configuration
 ```
-
-### TUI Mode
-
-```bash
-# Start TUI interface
-stargazer start --mode tui
-
-# Controls:
-# Ctrl+R - Refresh
-# Ctrl+H - Health summary
-# Ctrl+S - Manual scan
-# Tab - Navigate between widgets
-# Ctrl+C - Quit
-```
-
-## 📋 Commands
-
-### System Commands
-- `/agents` - List available agents
-- `/help` - Show help
-- `/sessions` - Session management
-- `/export` - Export issues
-
-### Agent Commands
-- `@agentname` - Switch to agent
-- `@agentname command` - Execute on specific agent
-- `!kubectl command` - Execute kubectl directly
-
-### File References
-- `@pod/web-app-123` - Reference specific pod
-- `@deployment/api-gateway` - Reference deployment
 
 ## 🏗️ Architecture
 
 ```
 stargazer/
-├── Dockerfile                    # Multi-stage, minimal
-├── requirements.txt              # Essential deps only
-├── kustomization.yaml          # Kustomize deployment
-├── deployment.yaml             # Namespace auto-detection
-├── serviceaccount.yaml          # Read-only permissions
-├── role.yaml                  # RBAC configuration
-├── rolebinding.yaml           # Service account binding
-├── persistentvolumeclaim.yaml    # Issue history storage
-├── build.sh                   # Build and deploy script
-├── standalone.py              # Development entry point
-└── src/
-    ├── main.py               # CLI/TUI entry point
-    ├── k8s_client.py        # Efficient K8s client with caching
-    ├── discovery.py          # Lightweight discovery engine
-    ├── mock_ai.py           # Pattern-based mock AI
-    ├── tui_app.py          # Textual interface
-    ├── agents.py            # Agent system
-    ├── storage.py           # JSON persistence
-    └── utils.py            # Shared utilities
+├── cmd/
+│   └── stargazer/        # CLI entry point
+├── app.go                # Desktop app entry point (Wails)
+├── internal/
+│   ├── api/              # HTTP server & WebSocket
+│   ├── k8s/              # Kubernetes client
+│   ├── config/           # Configuration management
+│   └── storage/          # Local persistence
+├── frontend/             # React/Next.js UI
+│   ├── app/              # Next.js app directory
+│   ├── components/       # React components
+│   └── lib/              # API client
+├── go.mod                # Go dependencies
+├── wails.json           # Wails configuration
+└── Makefile             # Build automation
 ```
 
 ## 🛠️ Technology Stack
 
-- **Base**: Python 3.11-slim
-- **CLI**: Click framework
-- **TUI**: Textual framework
-- **K8s**: Official Python client
-- **AI**: Pattern-based mock (PoC)
-- **Storage**: JSON file persistence
+- **Backend**: Go 1.21+
+- **Frontend**: Next.js 14, React 18, Tailwind CSS
+- **Desktop**: Wails v2
+- **K8s**: client-go (official Kubernetes Go client)
+- **Storage**: JSON file persistence (~/.stargazer/)
 
-## 📊 Resource Usage
+## 📊 Features
 
-- **CPU**: 25m request, 50m limit
-- **Memory**: 32Mi request, 64Mi limit
-- **Storage**: 100Mi PVC for issue history
-- **Startup Time**: <5 seconds
-- **Scan Interval**: 2 seconds (configurable)
+### Desktop App
+- Real-time cluster health dashboard
+- Issue discovery and tracking
+- Resource browsing (Pods, Deployments, Events)
+- Service topology visualization
+- Multi-cluster context switching
+- Namespace filtering
+- Theme customization (Dark/Light/Auto)
+- AI provider configuration
+- Settings management
+
+### CLI
+- Health checks
+- Cluster scanning
+- Pod log retrieval
+- Resource listing
+- Configuration management
 
 ## 🔒 Security
 
-- **Read-Only RBAC**: Safe for production
-- **No Privileges**: Runs as non-root user
-- **Minimal Scope**: Only reads cluster state
-- **No External Calls**: Fully self-contained
+- **Read-Only Access**: Only reads cluster state, never modifies
+- **Local Storage**: All data stored locally in `~/.stargazer/`
+- **Kubeconfig**: Uses standard Kubernetes authentication
+- **No External Calls**: Fully self-contained (except configured AI providers)
 
-## 📈 Performance Features
+## 📈 Performance
 
 - **Efficient Caching**: 30s TTL for API responses
 - **Background Scanning**: Minimal overhead
@@ -181,58 +156,68 @@ stargazer/
 
 ## 🐛 Development
 
-### Local Testing
+### Prerequisites
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run demo mode
-python standalone.py --demo
-
-# Interactive testing
-python standalone.py --interactive
-
-# Test specific modules
-python -c "from src.agents import AgentSystem; print('Agents loaded successfully')"
-```
+- Go 1.21+
+- Node.js 16+
+- Wails CLI: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- kubectl (for Kubernetes access)
 
 ### Building
 
 ```bash
-# Local build
-docker build -t stargazer:test .
+# Build CLI
+make build
 
-# Test container
-docker run -it --rm stargazer:test python standalone.py --demo
+# Build desktop app
+make build-gui
+
+# Build both
+make build-all
+
+# Development mode (desktop app)
+make dev-gui
+```
+
+### Testing
+
+```bash
+# Run Go tests
+make test
+
+# Run with coverage
+make test-coverage
 ```
 
 ## 📝 Configuration
 
+Configuration is stored in `~/.stargazer/config.yaml`:
+
+- **Kubeconfig**: Auto-detected from `~/.kube/config` or `$KUBECONFIG`
+- **AI Providers**: Configure in Settings UI or via config file
+- **API Settings**: Rate limiting, CORS, etc.
+
 ### Environment Variables
 
-- `POD_NAMESPACE` - Auto-detected via Downward API
-- `POD_NAME` - Auto-detected via Downward API
-- `SCAN_INTERVAL` - Discovery scan interval (default: 2s)
-- `CACHE_TTL` - API cache TTL (default: 30s)
-- `LOG_LEVEL` - Logging level (default: INFO)
+- `KUBECONFIG`: Path to kubeconfig file (auto-detected if not set)
+- `KUBECTL_CONTEXT`: Kubernetes context to use
+- `LOG_LEVEL`: Logging level (default: INFO)
+- `CACHE_TTL`: API cache TTL in seconds (default: 30)
 
-### Kubernetes Configuration
+## 🚀 Distribution
 
-The deployment uses:
-- Downward API for namespace detection
-- Read-only RBAC permissions
-- Persistent volume for issue storage
-- Resource limits for efficiency
+### Homebrew (macOS)
 
-## 🚀 Future Enhancements
+```bash
+# Install from formula
+brew install --build-from-source stargazer.rb
+```
 
-- **Real AI Integration**: Replace mock AI with Anthropic
-- **Metrics Integration**: Prometheus metrics
-- **Alerting**: Webhook integrations
-- **Multi-Cluster**: Support for multiple clusters
-- **Plugin System**: Custom agent plugins
-- **GitOps**: Configuration as code
+### Manual Installation
+
+1. Download binary from releases
+2. Add to PATH
+3. Run `stargazer config setup` for initial configuration
 
 ## 📄 License
 
