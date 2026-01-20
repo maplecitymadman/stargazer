@@ -260,7 +260,7 @@ export default function PathTracer({ namespace }: PathTracerProps) {
                     {idx > 0 && (
                       <div className="flex flex-col items-center pt-2">
                         <div className="w-0.5 h-4 bg-[#71717a]"></div>
-                        <Icon name="arrow-down" className="text-[#71717a]" size="sm" />
+                        <span className="text-[#71717a]">↓</span>
                         <div className="w-0.5 h-4 bg-[#71717a]"></div>
                       </div>
                     )}

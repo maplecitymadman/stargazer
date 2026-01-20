@@ -310,7 +310,7 @@ export default function Dashboard({ namespace, onNavigateToTopology, onNavigateT
               onClick={() => onNavigateToTopology?.()}
               className="text-sm text-[#3b82f6] hover:text-[#2563eb] flex items-center gap-1"
             >
-              View All <Icon name="arrow-right" size="sm" />
+              View All →
             </button>
           </div>
           <div className="space-y-3">
@@ -339,7 +339,7 @@ export default function Dashboard({ namespace, onNavigateToTopology, onNavigateT
                     <span className="text-xs px-2 py-1 rounded bg-[#ef4444]/20 text-[#ef4444]">
                       {service.blockedConnections} blocked
                     </span>
-                    <Icon name="arrow-right" className="text-[#71717a]" size="sm" />
+                    <span className="text-[#71717a]">→</span>
                   </div>
                 </div>
                 {service.blockingPolicies.length > 0 && (
