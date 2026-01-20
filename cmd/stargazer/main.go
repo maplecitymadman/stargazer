@@ -56,8 +56,7 @@ var askCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		question := args[0]
 		fmt.Printf("💬 Question: %s\n", question)
-		fmt.Println("⚠️  AI troubleshooting not yet implemented - coming in Phase 4-5")
-		// TODO: Phase 4-5 - Implement AI engine
+		fmt.Println("⚠️  AI troubleshooting not yet implemented - planned for future release")
 	},
 }
 

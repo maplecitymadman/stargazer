@@ -173,9 +173,6 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
     try {
       setLoading(true);
       const data = await apiClient.getServiceTopology(namespace);
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Topology data loaded');
-      }
       setTopology(data);
     } catch (error) {
       console.error('Error loading topology:', error);
@@ -227,14 +224,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
     return true;
   });
 
-  // Debug logging (development only)
-  if (process.env.NODE_ENV === 'development' && selectedService === 'web-app') {
-    console.log('Web-app connectivity:', {
-      total: selectedConnections.length,
-      allowed: selectedConnections.filter(c => c.allowed).length,
-      blocked: selectedConnections.filter(c => !c.allowed).length,
-    });
-  }
+  // Service connectivity metrics available via topology data
 
   return (
     <div className="space-y-6">
