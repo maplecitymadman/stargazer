@@ -87,9 +87,9 @@ export default function ContextSelector({ onContextChange }: ContextSelectorProp
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-3 py-2 rounded-md bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.12)] transition-all text-left"
       >
-        <div className="text-xs text-[#71717a] mb-1">Cluster Context</div>
+        <div className="text-xs text-[#71717a] mb-1">Cluster</div>
         <div className="text-sm text-[#3b82f6] font-medium truncate">
-          {currentContext || 'Unknown'}
+          {currentContextInfo?.cluster || currentContext || 'Unknown'}
         </div>
         {currentContextInfo && (
           <div className="text-xs text-[#71717a] mt-1 truncate">
