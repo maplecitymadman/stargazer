@@ -77,7 +77,7 @@ func (c *Client) GetComplianceScore(ctx context.Context, topology *TopologyData)
 		"score":                score,
 		"passed":               passedChecks,
 		"total":                totalChecks,
-		"details":              details,
+		"check_details":       details,
 		"recommendations_count": len(recommendations),
 	}
 }

@@ -1353,11 +1353,14 @@ func (s *Server) handleGetComplianceScore(c *gin.Context) {
 	}
 
 	// Get compliance score
-	score, details := client.GetComplianceScore(ctx, topology)
+	score, scoreDetails := client.GetComplianceScore(ctx, topology)
 
 	c.JSON(http.StatusOK, gin.H{
 		"score":     score,
-		"details":   details,
+		"passed":    scoreDetails["passed"],
+		"total":     scoreDetails["total"],
+		"details":   scoreDetails["check_details"],
+		"recommendations_count": scoreDetails["recommendations_count"],
 		"namespace": namespace,
 	})
 }
