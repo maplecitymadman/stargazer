@@ -750,10 +750,11 @@ func (c *Client) getIstioPolicies(ctx context.Context, namespace string) ([]Isti
 		}
 	}
 
-	// AuthorizationPolicy
+	// AuthorizationPolicy (uses security.istio.io, which may have different version)
+	// Try v1 first (most common), then fall back to detected version
 	apGVR := schema.GroupVersionResource{
 		Group:    "security.istio.io",
-		Version:  istioVersion,
+		Version:  "v1",
 		Resource: "authorizationpolicies",
 	}
 
@@ -762,6 +763,16 @@ func (c *Client) getIstioPolicies(ctx context.Context, namespace string) ([]Isti
 		apList, err = c.dynamicClient.Resource(apGVR).Namespace("").List(ctx, metav1.ListOptions{})
 	} else {
 		apList, err = c.dynamicClient.Resource(apGVR).Namespace(ns).List(ctx, metav1.ListOptions{})
+	}
+
+	// If v1 fails, try v1beta1 (older Istio versions)
+	if err != nil {
+		apGVR.Version = "v1beta1"
+		if ns == "" {
+			apList, err = c.dynamicClient.Resource(apGVR).Namespace("").List(ctx, metav1.ListOptions{})
+		} else {
+			apList, err = c.dynamicClient.Resource(apGVR).Namespace(ns).List(ctx, metav1.ListOptions{})
+		}
 	}
 
 	if err == nil {
