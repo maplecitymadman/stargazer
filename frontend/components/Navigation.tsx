@@ -20,11 +20,7 @@ export default function Navigation({ currentSection, onSectionChange, namespace,
   const sections = [
     { id: 'dashboard', label: 'Dashboard', icon: 'info' as const },
     { id: 'topology', label: 'Service Topology', icon: 'network' as const },
-    { id: 'resources', label: 'Resources', icon: 'scan' as const },
-    { id: 'pods', label: 'Pods', icon: 'pods' as const },
-    { id: 'deployments', label: 'Deployments', icon: 'deployments' as const },
     { id: 'events', label: 'Events', icon: 'events' as const },
-    { id: 'issues', label: 'Issues', icon: 'scan' as const },
     { id: 'settings', label: 'Settings', icon: 'info' as const },
   ];
 
@@ -54,7 +50,6 @@ export default function Navigation({ currentSection, onSectionChange, namespace,
               K8s Cluster Observatory
             </div>
             <div className="text-xs text-[#3b82f6]/60 mb-3 font-medium">
-              POWERED BY AI
             </div>
             <div className="space-y-2">
               <ContextSelector onContextChange={onContextChange} />

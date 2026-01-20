@@ -51,6 +51,100 @@ export interface Agent {
   current: string;
 }
 
+export interface IngressInfo {
+  gateways: GatewayInfo[];
+  kubernetes_ingress: KubernetesIngressInfo[];
+  routes: IngressRoute[];
+  connections: IngressConnection[];
+}
+
+export interface EgressInfo {
+  gateways: GatewayInfo[];
+  external_services: ExternalServiceInfo[];
+  connections: EgressConnection[];
+  has_egress_gateway: boolean;
+  direct_egress: boolean;
+}
+
+export interface GatewayInfo {
+  name: string;
+  namespace: string;
+  type: 'istio' | 'nginx' | 'kubernetes';
+  hosts: string[];
+  ports: string[];
+  selector?: Record<string, string>;
+  service?: string;
+}
+
+export interface KubernetesIngressInfo {
+  name: string;
+  namespace: string;
+  hosts: string[];
+  paths: string[];
+  backend: string;
+  backend_port?: string;
+  tls: boolean;
+  class?: string;
+}
+
+export interface IngressRoute {
+  gateway: string;
+  host: string;
+  path: string;
+  service: string;
+  namespace: string;
+  allowed: boolean;
+  blocked_by?: string[];
+  type: 'istio' | 'nginx' | 'kubernetes';
+}
+
+export interface IngressConnection {
+  from: string;
+  to: string;
+  allowed: boolean;
+  reason: string;
+  policies?: string[];
+  port?: string;
+  protocol?: string;
+}
+
+export interface EgressConnection {
+  from: string;
+  to: string;
+  allowed: boolean;
+  reason: string;
+  policies?: string[];
+  port?: string;
+  protocol?: string;
+}
+
+export interface ExternalServiceInfo {
+  name: string;
+  namespace: string;
+  hosts: string[];
+  ports: string[];
+  type: 'serviceentry' | 'direct';
+}
+
+export interface PathTrace {
+  source: string;
+  destination: string;
+  path: PathHop[];
+  allowed: boolean;
+  blocked_at?: PathHop;
+  reason: string;
+}
+
+export interface PathHop {
+  from: string;
+  to: string;
+  type: 'ingress' | 'service' | 'egress';
+  allowed: boolean;
+  reason: string;
+  policies?: string[];
+  service_mesh?: string;
+}
+
 export const apiClient = {
   async getHealth(namespace?: string): Promise<ClusterHealth> {
     try {
@@ -70,22 +164,13 @@ export const apiClient = {
   },
 
   async getIssues(namespace?: string): Promise<Issue[]> {
-    try {
-      const response = await api.get<{ issues: Issue[]; count: number }>('/api/cluster/issues', {
-        params: namespace !== undefined ? { namespace } : {},
-      });
-      return response.data.issues;
-    } catch (error: any) {
-      console.error('Error fetching issues:', error);
-      return [];
-    }
+    // Stub - endpoint removed
+    return [];
   },
 
   async getPods(namespace?: string): Promise<Pod[]> {
-    const response = await api.get<{ pods: Pod[]; namespace: string; count: number }>('/api/pods', {
-      params: { namespace },
-    });
-    return response.data.pods;
+    // Stub - endpoint removed
+    return [];
   },
 
   async getAgents(): Promise<Agent> {
@@ -118,10 +203,8 @@ export const apiClient = {
   },
 
   async getDeployments(namespace?: string): Promise<any> {
-    const response = await api.get<{ deployments: any[]; namespace: string; count: number }>('/api/deployments', {
-      params: namespace ? { namespace } : {},
-    });
-    return response.data;
+    // Stub - endpoint removed
+    return { deployments: [], namespace: namespace || 'all', count: 0 };
   },
 
   async getEvents(namespace?: string): Promise<any> {
@@ -132,10 +215,8 @@ export const apiClient = {
   },
 
   async getAllResources(namespace?: string): Promise<any> {
-    const response = await api.get<{ resources: any; namespace: string }>('/api/resources', {
-      params: namespace ? { namespace } : {},
-    });
-    return response.data;
+    // Stub - endpoint removed
+    return { resources: {}, namespace: namespace || 'all' };
   },
 
   async getIssueRecommendations(issueId: string): Promise<any> {
@@ -167,6 +248,17 @@ export const apiClient = {
     return response.data;
   },
 
+  async tracePath(source: string, destination: string, namespace?: string): Promise<PathTrace> {
+    const response = await api.get('/api/topology/trace', {
+      params: {
+        source,
+        destination,
+        namespace: namespace || 'all',
+      },
+    });
+    return response.data;
+  },
+
   async getServiceConnections(serviceName: string, namespace?: string): Promise<any> {
     const response = await api.get(`/api/topology/${serviceName}`, {
       params: namespace ? { namespace } : {},
@@ -182,10 +274,8 @@ export const apiClient = {
   },
 
   async getResourceYaml(resourceType: string, resourceName: string, namespace?: string): Promise<any> {
-    const response = await api.get(`/api/resources/${resourceType}/${resourceName}/yaml`, {
-      params: namespace ? { namespace } : {},
-    });
-    return response.data;
+    // Stub - endpoint removed
+    return { yaml: '', error: 'Endpoint removed' };
   },
 
   async getContexts(): Promise<any> {

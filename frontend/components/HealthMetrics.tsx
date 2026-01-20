@@ -6,12 +6,10 @@ import { Icon } from './SpaceshipIcons';
 interface HealthMetricsProps {
   health: ClusterHealth;
   namespace?: string;
-  onPodsClick?: () => void;
-  onDeploymentsClick?: () => void;
   onEventsClick?: () => void;
 }
 
-export default function HealthMetrics({ health, namespace, onPodsClick, onDeploymentsClick, onEventsClick }: HealthMetricsProps) {
+export default function HealthMetrics({ health, namespace, onEventsClick }: HealthMetricsProps) {
   const podsPercent = health.pods.total > 0 
     ? Math.round((health.pods.healthy / health.pods.total) * 100) 
     : 0;
@@ -45,8 +43,7 @@ export default function HealthMetrics({ health, namespace, onPodsClick, onDeploy
 
       {/* Pods */}
       <div 
-        className="card card-hover rounded-lg p-5 cursor-pointer"
-        onClick={onPodsClick || (() => {})}
+        className="card rounded-lg p-5"
       >
         <div className="text-xs text-[#71717a] mb-2 flex items-center gap-2">
           <Icon name="pods" className="text-[#71717a]" size="sm" />
@@ -76,8 +73,7 @@ export default function HealthMetrics({ health, namespace, onPodsClick, onDeploy
 
       {/* Deployments */}
       <div 
-        className="card card-hover rounded-lg p-5 cursor-pointer"
-        onClick={onDeploymentsClick || (() => {})}
+        className="card rounded-lg p-5"
       >
         <div className="text-xs text-[#71717a] mb-2 flex items-center gap-2">
           <Icon name="deployments" className="text-[#71717a]" size="sm" />

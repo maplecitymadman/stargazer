@@ -10,6 +10,10 @@ import (
 	"sync"
 	"time"
 
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -18,12 +22,13 @@ import (
 
 // Client wraps the Kubernetes client-go with caching and helper methods
 type Client struct {
-	clientset       *kubernetes.Clientset
-	namespace       string
-	cache           *cache
-	kubeconfigPath  string
-	context         string
-	restConfig      *rest.Config
+	clientset      *kubernetes.Clientset
+	dynamicClient  dynamic.Interface
+	namespace      string
+	cache          *cache
+	kubeconfigPath string
+	context        string
+	restConfig     *rest.Config
 }
 
 // cache holds cached K8s API responses with TTL
@@ -46,78 +51,102 @@ func DiscoverKubeconfigPath() (string, error) {
 
 // NewClient creates a new Kubernetes client
 // If kubeconfigPath is empty, it tries: KUBECONFIG env var, then ~/.kube/config
+// If no kubeconfig is found and running in-cluster, it uses in-cluster config
 // If contextName is empty, it uses the current context from kubeconfig
 func NewClient(kubeconfigPath, contextName, namespace string) (*Client, error) {
-	// Build config using client-go's default loading rules
-	// This handles all the standard kubeconfig discovery automatically
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	
-	// If explicit path provided, use it; otherwise let client-go discover it
+	var config *rest.Config
 	var resolvedPath string
+	var err error
+
+	// If explicit kubeconfig path provided, use it
 	if kubeconfigPath != "" {
-		// Use explicitly provided path
 		expanded := expandPath(kubeconfigPath)
 		if _, err := os.Stat(expanded); os.IsNotExist(err) {
 			return nil, fmt.Errorf("kubeconfig file not found at specified path: %s", expanded)
 		}
 		resolvedPath = expanded
+
+		loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 		loadingRules.ExplicitPath = resolvedPath
+		configOverrides := &clientcmd.ConfigOverrides{}
+		if contextName != "" {
+			configOverrides.CurrentContext = contextName
+		}
+
+		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			loadingRules,
+			configOverrides,
+		)
+
+		config, err = clientConfig.ClientConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubeconfig from %s: %w", resolvedPath, err)
+		}
 	} else {
-		// Let client-go use its default discovery (same as kubectl)
-		// This will check KUBECONFIG env var, then ~/.kube/config
-		// Don't set ExplicitPath - let client-go handle discovery
+		// Try kubeconfig first (for local/desktop usage)
+		loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 		resolvedPath = loadingRules.GetDefaultFilename()
-	}
 
-	configOverrides := &clientcmd.ConfigOverrides{}
-	if contextName != "" {
-		configOverrides.CurrentContext = contextName
-	}
-
-	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		loadingRules,
-		configOverrides,
-	)
-
-	config, err := clientConfig.ClientConfig()
-	if err != nil {
-		// Try to get the actual path that was used
-		actualPath := loadingRules.GetDefaultFilename()
-		if loadingRules.ExplicitPath != "" {
-			actualPath = loadingRules.ExplicitPath
+		configOverrides := &clientcmd.ConfigOverrides{}
+		if contextName != "" {
+			configOverrides.CurrentContext = contextName
 		}
-		
-		// Provide helpful error message
-		home := homedir.HomeDir()
-		defaultPath := ""
-		if home != "" {
-			defaultPath = filepath.Join(home, ".kube", "config")
-		}
-		
-		return nil, fmt.Errorf(`failed to load kubeconfig from %s: %w
 
+		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			loadingRules,
+			configOverrides,
+		)
+
+		config, err = clientConfig.ClientConfig()
+		if err != nil {
+			// If kubeconfig fails, try in-cluster config (for pod deployment)
+			inClusterConfig, inClusterErr := rest.InClusterConfig()
+			if inClusterErr == nil {
+				// Successfully loaded in-cluster config
+				config = inClusterConfig
+				resolvedPath = "in-cluster"
+				fmt.Println("ℹ️  Using in-cluster Kubernetes configuration")
+			} else {
+				// Both failed - provide helpful error
+				home := homedir.HomeDir()
+				defaultPath := ""
+				if home != "" {
+					defaultPath = filepath.Join(home, ".kube", "config")
+				}
+
+				return nil, fmt.Errorf(`failed to load Kubernetes configuration:
+				
+Tried kubeconfig: %s
+  Error: %v
+				
+Tried in-cluster config:
+  Error: %v
+				
 To fix:
 1. Set kubeconfig path in Settings → Cluster
 2. Or ensure kubeconfig exists at: %s
-3. Or set KUBECONFIG environment variable`, 
-			actualPath, err, defaultPath)
-	}
-	
-	// Get the actual path that was loaded (for logging/storage)
-	// After successful load, get the actual path from the loading rules
-	if resolvedPath == "" || loadingRules.ExplicitPath == "" {
-		// The actual path used will be in GetDefaultFilename() or ExplicitPath
-		if loadingRules.ExplicitPath != "" {
-			resolvedPath = loadingRules.ExplicitPath
-		} else {
-			resolvedPath = loadingRules.GetDefaultFilename()
+3. Or set KUBECONFIG environment variable
+4. Or ensure running in a Kubernetes pod with proper ServiceAccount`,
+					resolvedPath, err, inClusterErr, defaultPath)
+			}
 		}
 	}
+
+	// Get the actual path that was loaded (for logging/storage)
+	// If we used in-cluster config, resolvedPath is already set to "in-cluster"
+	// Otherwise, resolvedPath was set during the kubeconfig loading process
 
 	// Create clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes clientset: %w", err)
+	}
+
+	// Create dynamic client for CRDs
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		// Log but don't fail - dynamic client is optional
+		fmt.Printf("Warning: Failed to create dynamic client: %v (CRD operations will be unavailable)\n", err)
 	}
 
 	// Determine cache TTL from environment (default: 30s)
@@ -138,6 +167,7 @@ To fix:
 
 	client := &Client{
 		clientset:      clientset,
+		dynamicClient:  dynamicClient,
 		namespace:      namespace,
 		kubeconfigPath: resolvedPath,
 		context:        contextName,
@@ -181,7 +211,7 @@ func resolveKubeconfigPath(explicitPath string) (string, error) {
 		if runtime.GOOS == "windows" {
 			separator = ";"
 		}
-		
+
 		paths := strings.Split(envPath, separator)
 		for _, path := range paths {
 			path = strings.TrimSpace(path)
@@ -199,13 +229,13 @@ func resolveKubeconfigPath(explicitPath string) (string, error) {
 	// 4. Try default locations in order of preference
 	if home := homedir.HomeDir(); home != "" {
 		defaultPaths := []string{
-			filepath.Join(home, ".kube", "config"),           // Standard location
-			filepath.Join(home, ".kube", "kubeconfig"),       // Alternative name
-			filepath.Join(home, "kubeconfig"),                // Home directory
-			filepath.Join(home, ".kube", "config.yaml"),      // YAML extension
-			filepath.Join(home, ".kube", "config.yml"),       // YML extension
+			filepath.Join(home, ".kube", "config"),      // Standard location
+			filepath.Join(home, ".kube", "kubeconfig"),  // Alternative name
+			filepath.Join(home, "kubeconfig"),           // Home directory
+			filepath.Join(home, ".kube", "config.yaml"), // YAML extension
+			filepath.Join(home, ".kube", "config.yml"),  // YML extension
 		}
-		
+
 		for _, defaultPath := range defaultPaths {
 			triedPaths = append(triedPaths, defaultPath)
 			if _, err := os.Stat(defaultPath); err == nil {
@@ -220,10 +250,10 @@ func resolveKubeconfigPath(explicitPath string) (string, error) {
 		filepath.Join(currentDir, "kubeconfig"),
 		filepath.Join(currentDir, ".kube", "config"),
 		filepath.Join(currentDir, "config"),
-		"/etc/kubernetes/admin.conf",                          // Common in kubeadm setups
-		"/etc/kubernetes/kubeconfig",                          // Alternative system location
+		"/etc/kubernetes/admin.conf", // Common in kubeadm setups
+		"/etc/kubernetes/kubeconfig", // Alternative system location
 	}
-	
+
 	for _, commonPath := range commonPaths {
 		triedPaths = append(triedPaths, commonPath)
 		if _, err := os.Stat(commonPath); err == nil {
@@ -267,10 +297,10 @@ func expandPath(path string) string {
 	if path == "" {
 		return path
 	}
-	
+
 	// Expand environment variables
 	expanded := os.ExpandEnv(path)
-	
+
 	// Handle ~ for home directory
 	if len(expanded) > 0 && expanded[0] == '~' {
 		home := homedir.HomeDir()
@@ -278,17 +308,17 @@ func expandPath(path string) string {
 			if len(expanded) == 1 {
 				return home
 			}
-		// Handle ~/path and ~user/path
-		if expanded[1] == '/' || expanded[1] == filepath.Separator {
-			expanded = filepath.Join(home, expanded[2:])
-		}
-		// Note: ~user format is left as-is (would require user.Lookup)
+			// Handle ~/path and ~user/path
+			if expanded[1] == '/' || expanded[1] == filepath.Separator {
+				expanded = filepath.Join(home, expanded[2:])
+			}
+			// Note: ~user format is left as-is (would require user.Lookup)
 		}
 	}
-	
+
 	// Clean the path (resolve . and ..)
 	expanded = filepath.Clean(expanded)
-	
+
 	return expanded
 }
 
@@ -309,23 +339,23 @@ func getConfigKubeconfigPath() string {
 	// Simple YAML parsing - look for kubeconfig.path
 	content := string(data)
 	lines := strings.Split(content, "\n")
-	
+
 	inKubeconfig := false
 	indentLevel := 0
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		
+
 		// Check if we're entering kubeconfig section
 		if strings.HasPrefix(trimmed, "kubeconfig:") {
 			inKubeconfig = true
 			indentLevel = len(line) - len(strings.TrimLeft(line, " \t"))
 			continue
 		}
-		
+
 		// Check if we've left the kubeconfig section
 		if inKubeconfig {
 			currentIndent := len(line) - len(strings.TrimLeft(line, " \t"))
@@ -334,7 +364,7 @@ func getConfigKubeconfigPath() string {
 				continue
 			}
 		}
-		
+
 		// Look for path field within kubeconfig section
 		if inKubeconfig && strings.HasPrefix(trimmed, "path:") {
 			parts := strings.SplitN(trimmed, "path:", 2)
@@ -355,6 +385,16 @@ func getConfigKubeconfigPath() string {
 // GetClientset returns the underlying Kubernetes clientset
 func (c *Client) GetClientset() *kubernetes.Clientset {
 	return c.clientset
+}
+
+// GetDynamicClient returns the dynamic client for CRD operations
+func (c *Client) GetDynamicClient() dynamic.Interface {
+	return c.dynamicClient
+}
+
+// GetPolicyBuilder returns a policy builder instance
+func (c *Client) GetPolicyBuilder() *PolicyBuilder {
+	return NewPolicyBuilder(c.clientset, c.dynamicClient)
 }
 
 // GetNamespace returns the configured namespace
@@ -429,4 +469,95 @@ func (c *Client) ClearCache() {
 func (c *Client) Health(ctx context.Context) error {
 	_, err := c.clientset.Discovery().ServerVersion()
 	return err
+}
+
+// PolicyWatcher watches for policy changes
+type PolicyWatcher struct {
+	client        *Client
+	stopCh        chan struct{}
+	eventHandlers []func(eventType string, policyType string, name string, namespace string)
+}
+
+// NewPolicyWatcher creates a new policy watcher
+func (c *Client) NewPolicyWatcher() *PolicyWatcher {
+	return &PolicyWatcher{
+		client:        c,
+		stopCh:        make(chan struct{}),
+		eventHandlers: []func(string, string, string, string){},
+	}
+}
+
+// OnPolicyChange registers a handler for policy changes
+func (pw *PolicyWatcher) OnPolicyChange(handler func(eventType string, policyType string, name string, namespace string)) {
+	pw.eventHandlers = append(pw.eventHandlers, handler)
+}
+
+// Start starts watching for policy changes
+func (pw *PolicyWatcher) Start(ctx context.Context) error {
+	// Watch NetworkPolicies
+	go pw.watchNetworkPolicies(ctx)
+
+	// Watch Cilium policies if enabled
+	if pw.client.dynamicClient != nil {
+		go pw.watchCiliumPolicies(ctx)
+		go pw.watchIstioPolicies(ctx)
+	}
+
+	return nil
+}
+
+// Stop stops watching
+func (pw *PolicyWatcher) Stop() {
+	close(pw.stopCh)
+}
+
+// watchNetworkPolicies watches Kubernetes NetworkPolicies
+func (pw *PolicyWatcher) watchNetworkPolicies(ctx context.Context) {
+	watcher, err := pw.client.clientset.NetworkingV1().NetworkPolicies("").Watch(ctx, metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+	defer watcher.Stop()
+
+	for {
+		select {
+		case <-pw.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		case event := <-watcher.ResultChan():
+			policy, ok := event.Object.(*networkingv1.NetworkPolicy)
+			if !ok {
+				continue
+			}
+
+			eventType := "unknown"
+			switch event.Type {
+			case watch.Added:
+				eventType = "added"
+			case watch.Modified:
+				eventType = "modified"
+			case watch.Deleted:
+				eventType = "deleted"
+			}
+
+			for _, handler := range pw.eventHandlers {
+				handler(eventType, "networkpolicy", policy.Name, policy.Namespace)
+			}
+		}
+	}
+}
+
+// watchCiliumPolicies watches Cilium NetworkPolicies
+func (pw *PolicyWatcher) watchCiliumPolicies(ctx context.Context) {
+	// Use dynamic client to watch Cilium CRDs
+	// Implementation similar to watchNetworkPolicies
+	// For now, placeholder - can be enhanced later
+}
+
+// watchIstioPolicies watches Istio policies
+func (pw *PolicyWatcher) watchIstioPolicies(ctx context.Context) {
+	// Use dynamic client to watch Istio CRDs
+	// Implementation similar to watchNetworkPolicies
+	// For now, placeholder - can be enhanced later
 }

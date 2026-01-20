@@ -13,8 +13,11 @@ interface ServiceConnection {
   allowed: boolean;
   reason: string;
   via_service_mesh: boolean;
+  service_mesh_type?: string; // "istio", "cilium", or ""
   blocked_by_policy: boolean;
   blocking_policies?: string[];
+  port?: string;
+  protocol?: string;
 }
 
 interface ServiceInfo {
@@ -28,6 +31,8 @@ interface ServiceInfo {
   healthy_pods: number;
   deployment: string | null;
   has_service_mesh: boolean;
+  service_mesh_type?: string; // "istio", "cilium", or ""
+  has_cilium_proxy: boolean;
 }
 
 interface ConnectivityInfo {
@@ -37,12 +42,39 @@ interface ConnectivityInfo {
   blocked_from: string[];
 }
 
+interface InfrastructureInfo {
+  cni: string;
+  cilium_enabled: boolean;
+  istio_enabled: boolean;
+  kyverno_enabled: boolean;
+  network_policies: number;
+  cilium_policies: number;
+  istio_policies: number;
+  kyverno_policies: number;
+}
+
 interface TopologyData {
   namespace: string;
   services: Record<string, ServiceInfo>;
   connectivity: Record<string, ConnectivityInfo>;
-  network_policies: number;
-  istio_enabled: boolean;
+  ingress?: {
+    gateways: any[];
+    kubernetes_ingress: any[];
+    routes: any[];
+    connections: any[];
+  };
+  egress?: {
+    gateways: any[];
+    external_services: any[];
+    connections: any[];
+    has_egress_gateway: boolean;
+    direct_egress: boolean;
+  };
+  network_policies: NetworkPolicyInfo[];
+  cilium_policies: CiliumNetworkPolicyInfo[];
+  istio_policies: IstioPolicyInfo[];
+  kyverno_policies: KyvernoPolicyInfo[];
+  infrastructure: InfrastructureInfo;
   summary: {
     total_services: number;
     services_with_mesh: number;
@@ -50,7 +82,38 @@ interface TopologyData {
     allowed_connections: number;
     blocked_connections: number;
     mesh_coverage: string;
+    cilium_coverage: string;
+    istio_coverage: string;
   };
+  hubble_enabled?: boolean;
+}
+
+interface NetworkPolicyInfo {
+  name: string;
+  namespace: string;
+  type: string;
+  yaml?: string;
+}
+
+interface CiliumNetworkPolicyInfo {
+  name: string;
+  namespace: string;
+  type: string;
+  yaml?: string;
+}
+
+interface IstioPolicyInfo {
+  name: string;
+  namespace: string;
+  type: string;
+  yaml?: string;
+}
+
+interface KyvernoPolicyInfo {
+  name: string;
+  namespace: string;
+  type: string;
+  yaml?: string;
 }
 
 export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
@@ -67,6 +130,30 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
 
   useEffect(() => {
     loadTopology();
+  }, [namespace]);
+
+  // WebSocket listener for policy changes
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    
+    const ws = new WebSocket(wsUrl);
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'policy_change') {
+          // Reload topology when policy changes
+          loadTopology();
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    };
+    
+    return () => {
+      ws.close();
+    };
   }, [namespace]);
 
   // Auto-select first service with blocked connections if none selected
@@ -199,6 +286,9 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
             {topology.summary.services_with_mesh}
             <span className="text-sm text-[#71717a] ml-2">({topology.summary.mesh_coverage})</span>
           </div>
+          <div className="text-xs text-[#71717a] mt-1">
+            Istio: {topology.summary.istio_coverage} • Cilium: {topology.summary.cilium_coverage}
+          </div>
         </div>
         <div className="card rounded-lg p-4">
           <div className="text-sm text-[#71717a] mb-1">Allowed Connections</div>
@@ -242,8 +332,15 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{service.name}</span>
                         {service.has_service_mesh && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">
-                            Istio
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            service.service_mesh_type === 'istio' 
+                              ? 'bg-blue-500/20 text-blue-300' 
+                              : service.service_mesh_type === 'cilium'
+                              ? 'bg-purple-500/20 text-purple-300'
+                              : 'bg-blue-500/20 text-blue-300'
+                          }`}>
+                            {service.service_mesh_type === 'istio' ? 'Istio' : 
+                             service.service_mesh_type === 'cilium' ? 'Cilium' : 'Mesh'}
                           </span>
                         )}
                       </div>
@@ -328,8 +425,15 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                             />
                             <span className="font-medium text-[#e4e4e7]">{conn.target}</span>
                             {conn.via_service_mesh && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">
-                                via Istio
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                conn.service_mesh_type === 'istio'
+                                  ? 'bg-blue-500/20 text-blue-300'
+                                  : conn.service_mesh_type === 'cilium'
+                                  ? 'bg-purple-500/20 text-purple-300'
+                                  : 'bg-blue-500/20 text-blue-300'
+                              }`}>
+                                via {conn.service_mesh_type === 'istio' ? 'Istio' : 
+                                     conn.service_mesh_type === 'cilium' ? 'Cilium' : 'Mesh'}
                               </span>
                             )}
                             {conn.blocked_by_policy && conn.blocking_policies && conn.blocking_policies.length > 0 && (
@@ -387,22 +491,102 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
       </div>
       )}
 
+      {/* Ingress/Egress Info */}
+      {topology.ingress && (topology.ingress.gateways.length > 0 || topology.ingress.kubernetes_ingress.length > 0) && (
+        <div className="card rounded-lg p-5">
+          <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Ingress Gateways</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-sm text-[#71717a]">
+              <span className="font-semibold text-[#e4e4e7]">Gateways:</span> {topology.ingress.gateways.length}
+            </div>
+            <div className="text-sm text-[#71717a]">
+              <span className="font-semibold text-[#e4e4e7]">Routes:</span> {topology.ingress.routes.length}
+            </div>
+            <div className="text-sm text-[#71717a]">
+              <span className="font-semibold text-[#e4e4e7]">Connections:</span> {topology.ingress.connections.length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {topology.egress && (
+        <div className="card rounded-lg p-5">
+          <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Egress Configuration</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-sm text-[#71717a]">
+              <span className="font-semibold text-[#e4e4e7]">Egress Gateway:</span> {topology.egress.has_egress_gateway ? 'Yes' : 'No'}
+            </div>
+            <div className="text-sm text-[#71717a]">
+              <span className="font-semibold text-[#e4e4e7]">Direct Egress:</span> {topology.egress.direct_egress ? 'Yes' : 'No'}
+            </div>
+            <div className="text-sm text-[#71717a]">
+              <span className="font-semibold text-[#e4e4e7]">External Services:</span> {topology.egress.external_services.length}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Infrastructure Info */}
       <div className="card rounded-lg p-5">
         <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Infrastructure Status</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <div className="flex items-center gap-2">
-            <Icon name={topology.istio_enabled ? "check" : "close"} 
-                  className={topology.istio_enabled ? "text-green-400" : "text-gray-500"} />
-            <span className="text-sm text-[#71717a]">Istio Service Mesh</span>
+            <Icon name={topology.infrastructure.cni ? "check" : "close"} 
+                  className={topology.infrastructure.cni ? "text-green-400" : "text-gray-500"} />
+            <div>
+              <span className="text-sm text-[#71717a] block">CNI</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.infrastructure.cni || "Unknown"}</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <Icon name={topology.network_policies > 0 ? "check" : "close"}
-                  className={topology.network_policies > 0 ? "text-green-400" : "text-gray-500"} />
-            <span className="text-sm text-[#71717a]">
-              Network Policies ({topology.network_policies})
-            </span>
+            <Icon name={topology.infrastructure.cilium_enabled ? "check" : "close"} 
+                  className={topology.infrastructure.cilium_enabled ? "text-purple-400" : "text-gray-500"} />
+            <div>
+              <span className="text-sm text-[#71717a] block">Cilium</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.summary.cilium_coverage}</span>
+            </div>
           </div>
+          <div className="flex items-center gap-2">
+            <Icon name={topology.infrastructure.istio_enabled ? "check" : "close"} 
+                  className={topology.infrastructure.istio_enabled ? "text-blue-400" : "text-gray-500"} />
+            <div>
+              <span className="text-sm text-[#71717a] block">Istio</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.summary.istio_coverage}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Icon name={topology.infrastructure.kyverno_enabled ? "check" : "close"}
+                  className={topology.infrastructure.kyverno_enabled ? "text-green-400" : "text-gray-500"} />
+            <div>
+              <span className="text-sm text-[#71717a] block">Kyverno</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.infrastructure.kyverno_policies} policies</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Icon name={topology.infrastructure.network_policies > 0 ? "check" : "close"}
+                  className={topology.infrastructure.network_policies > 0 ? "text-green-400" : "text-gray-500"} />
+            <div>
+              <span className="text-sm text-[#71717a] block">K8s Policies</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.infrastructure.network_policies}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Icon name={topology.infrastructure.cilium_policies > 0 ? "check" : "close"}
+                  className={topology.infrastructure.cilium_policies > 0 ? "text-purple-400" : "text-gray-500"} />
+            <div>
+              <span className="text-sm text-[#71717a] block">Cilium Policies</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.infrastructure.cilium_policies}</span>
+            </div>
+          </div>
+          {topology.hubble_enabled && (
+            <div className="flex items-center gap-2">
+              <Icon name="check" className="text-blue-400" />
+              <div>
+                <span className="text-sm text-[#71717a] block">Hubble</span>
+                <span className="text-xs text-[#a1a1aa]">Enabled</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -2,16 +2,17 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/maplecitymadman/stargazer/internal/config"
 	"github.com/maplecitymadman/stargazer/internal/k8s"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Health check endpoint
@@ -39,11 +40,15 @@ func (s *Server) handleHealth(c *gin.Context) {
 		status = http.StatusServiceUnavailable
 	}
 
+	errorMsg := ""
+	if err != nil {
+		errorMsg = err.Error()
+	}
 	c.JSON(status, gin.H{
 		"status":  map[bool]string{true: "healthy", false: "unhealthy"}[healthy],
 		"cluster": map[bool]string{true: "connected", false: "disconnected"}[healthy],
 		"version": "0.1.0-dev",
-		"error":   map[bool]string{true: "", false: err.Error()}[healthy],
+		"error":   errorMsg,
 	})
 }
 
@@ -170,34 +175,8 @@ func (s *Server) handleClusterHealth(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Get resource counts
-	var totalPods, healthyPods int
-	var totalDeployments, healthyDeployments int
-	var warningEvents, errorEvents int
-
-	// Get pods
-	pods, err := client.GetPods(ctx, ns)
-	if err == nil {
-		totalPods = len(pods)
-		for _, pod := range pods {
-			if pod.Status == "Running" && pod.Ready {
-				healthyPods++
-			}
-		}
-	}
-
-	// Get deployments
-	deployments, err := client.GetDeployments(ctx, ns)
-	if err == nil {
-		totalDeployments = len(deployments)
-		for _, dep := range deployments {
-			if dep.Replicas == dep.ReadyReplicas {
-				healthyDeployments++
-			}
-		}
-	}
-
 	// Get events
+	var warningEvents, errorEvents int
 	events, err := client.GetEvents(ctx, ns, false)
 	if err == nil {
 		for _, event := range events {
@@ -210,176 +189,25 @@ func (s *Server) handleClusterHealth(c *gin.Context) {
 	}
 
 	overallHealth := "healthy"
-	if healthyPods != totalPods || healthyDeployments != totalDeployments || totalPods == 0 {
+	if errorEvents > 0 {
 		overallHealth = "degraded"
 	}
 
+	// Return empty pods/deployments for frontend compatibility
 	c.JSON(http.StatusOK, gin.H{
 		"pods": gin.H{
-			"total":   totalPods,
-			"healthy": healthyPods,
+			"total":   0,
+			"healthy": 0,
 		},
 		"deployments": gin.H{
-			"total":   totalDeployments,
-			"healthy": healthyDeployments,
+			"total":   0,
+			"healthy": 0,
 		},
 		"events": gin.H{
 			"warnings": warningEvents,
 			"errors":   errorEvents,
 		},
 		"overall_health": overallHealth,
-	})
-}
-
-// Get cluster issues (v2 style - same as handleGetIssues but different endpoint)
-func (s *Server) handleClusterIssues(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"issues": []interface{}{},
-			"count":  0,
-			"error":  "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Query("namespace")
-	if namespace == "" {
-		namespace = "all"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	discovery := k8s.NewDiscovery(client)
-	issues, err := discovery.ScanAll(ctx, namespace)
-	if err != nil {
-		// Return empty list instead of error to prevent UI breakage
-		c.JSON(http.StatusOK, gin.H{
-			"issues": []interface{}{},
-			"count":  0,
-		})
-		return
-	}
-
-	// Convert issues to map format for JSON
-	issueMaps := make([]map[string]interface{}, len(issues))
-	for i, issue := range issues {
-		// Convert priority to lowercase for frontend
-		priorityStr := string(issue.Priority)
-		if priorityStr == "CRITICAL" {
-			priorityStr = "critical"
-		} else if priorityStr == "WARNING" {
-			priorityStr = "warning"
-		} else {
-			priorityStr = "info"
-		}
-		
-		issueMaps[i] = map[string]interface{}{
-			"id":            issue.ID,
-			"title":        issue.Title,
-			"description":  issue.Description,
-			"priority":     priorityStr,
-			"resource_type": issue.ResourceType,
-			"resource_name": issue.ResourceName,
-			"namespace":     issue.Namespace,
-			"timestamp":     time.Now().Format(time.RFC3339),
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"issues": issueMaps,
-		"count":  len(issueMaps),
-	})
-}
-
-// Get all discovered issues
-func (s *Server) handleGetIssues(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"issues":    []interface{}{},
-			"count":     0,
-			"namespace": "all",
-			"error":     "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Query("namespace")
-	if namespace == "" {
-		namespace = "all"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	discovery := k8s.NewDiscovery(client)
-	issues, err := discovery.ScanAll(ctx, namespace)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to scan cluster: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"issues":    issues,
-		"count":     len(issues),
-		"namespace": namespace,
-		"timestamp": time.Now().Format(time.RFC3339),
-	})
-}
-
-// Trigger a new scan
-func (s *Server) handleScan(c *gin.Context) {
-	var req struct {
-		Namespace string `json:"namespace"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		req.Namespace = "all"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Clear cache to force fresh scan
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	client.ClearCache()
-
-	discovery := k8s.NewDiscovery(client)
-	issues, err := discovery.ScanAll(ctx, req.Namespace)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Scan failed: %v", err),
-		})
-		return
-	}
-
-	// Broadcast to WebSocket clients
-	s.wsHub.Broadcast(Message{
-		Type: "scan_complete",
-		Data: map[string]interface{}{
-			"issues":    issues,
-			"count":     len(issues),
-			"namespace": req.Namespace,
-			"timestamp": time.Now().Format(time.RFC3339),
-		},
-	})
-
-	c.JSON(http.StatusOK, gin.H{
-		"issues":    issues,
-		"count":     len(issues),
-		"namespace": req.Namespace,
-		"timestamp": time.Now().Format(time.RFC3339),
 	})
 }
 
@@ -424,220 +252,6 @@ func (s *Server) handleGetNamespaces(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"namespaces": namespaces,
 		"count":      len(namespaces),
-	})
-}
-
-// Get pods with query param (v2 style)
-func (s *Server) handleGetPodsQuery(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"pods":      []interface{}{},
-			"count":     0,
-			"namespace": "all",
-			"error":     "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Query("namespace")
-	// Support "all" for all namespaces
-	ns := namespace
-	if namespace == "all" || namespace == "" {
-		ns = ""
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	pods, err := client.GetPods(ctx, ns)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get pods: %v", err),
-		})
-		return
-	}
-
-	displayNs := namespace
-	if displayNs == "" {
-		displayNs = "all"
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"pods":      pods,
-		"count":    len(pods),
-		"namespace": displayNs,
-	})
-}
-
-// Get pods in a namespace (path param - legacy)
-func (s *Server) handleGetPods(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Param("namespace")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	pods, err := client.GetPods(ctx, namespace)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get pods: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"pods":      pods,
-		"count":     len(pods),
-		"namespace": namespace,
-	})
-}
-
-// Get a specific pod
-func (s *Server) handleGetPod(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Param("namespace")
-	podName := c.Param("pod")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	pod, err := client.GetPod(ctx, namespace, podName)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": fmt.Sprintf("Pod not found: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, pod)
-}
-
-// Get pod logs
-func (s *Server) handleGetPodLogs(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Param("namespace")
-	podName := c.Param("pod")
-
-	// Parse query parameters
-	tail := 100 // default
-	if tailParam := c.Query("tail"); tailParam != "" {
-		if parsed, err := strconv.Atoi(tailParam); err == nil && parsed > 0 {
-			tail = parsed
-		}
-	}
-
-	follow := c.Query("follow") == "true"
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	logs, err := client.GetPodLogs(ctx, namespace, podName, tail, follow)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get logs: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"pod":       podName,
-		"namespace": namespace,
-		"logs":      logs,
-	})
-}
-
-// Get deployments with query param (v2 style)
-func (s *Server) handleGetDeploymentsQuery(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"deployments": []interface{}{},
-			"count":      0,
-			"namespace":  "all",
-			"error":      "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Query("namespace")
-	// Support "all" for all namespaces
-	ns := namespace
-	if namespace == "all" || namespace == "" {
-		ns = ""
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	deployments, err := client.GetDeployments(ctx, ns)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get deployments: %v", err),
-		})
-		return
-	}
-
-	displayNs := namespace
-	if displayNs == "" {
-		displayNs = "all"
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"deployments": deployments,
-		"count":       len(deployments),
-		"namespace":   displayNs,
-	})
-}
-
-// Get deployments in a namespace (path param - legacy)
-func (s *Server) handleGetDeployments(c *gin.Context) {
-	client := s.GetK8sClient()
-	if client == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "Kubernetes client not initialized. Please configure kubeconfig.",
-		})
-		return
-	}
-
-	namespace := c.Param("namespace")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	deployments, err := client.GetDeployments(ctx, namespace)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get deployments: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"deployments": deployments,
-		"count":       len(deployments),
-		"namespace":   namespace,
 	})
 }
 
@@ -781,7 +395,7 @@ func (s *Server) handleTroubleshoot(c *gin.Context) {
 	})
 }
 
-// Get service topology (Phase 2 deferred)
+// Get service topology with Cilium, Istio, and Kyverno support
 func (s *Server) handleGetTopology(c *gin.Context) {
 	namespace := c.Query("namespace")
 	// Support "all" for all namespaces
@@ -790,19 +404,38 @@ func (s *Server) handleGetTopology(c *gin.Context) {
 		ns = ""
 	}
 
-	// TODO: Implement service topology
-	// For now, return empty topology structure
-	c.JSON(http.StatusOK, gin.H{
-		"services":      map[string]interface{}{},
-		"connectivity":  map[string]interface{}{},
-		"network_policies": []interface{}{},
-		"namespace":     ns,
-		"summary": gin.H{
-			"total_services":       0,
-			"blocked_connections":  0,
-			"allowed_connections":  0,
-		},
-	})
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+	topology, err := client.GetTopology(ctx, ns)
+	// #region agent log
+	func() {
+		logData := map[string]interface{}{
+			"topologyErr": err != nil,
+			"topologyErrMsg": func() string { if err != nil { return err.Error() } else { return "" } }(),
+			"hasIngress": topology != nil && len(topology.Ingress.Gateways) > 0,
+			"hasEgress": topology != nil && len(topology.Egress.Gateways) > 0,
+		}
+		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"handlers.go:416","message":"handleGetTopology result","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
+		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString(logLine + "\n")
+		f.Close()
+	}()
+	// #endregion
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get topology: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, topology)
 }
 
 // Get service connections
@@ -816,38 +449,99 @@ func (s *Server) handleGetServiceConnections(c *gin.Context) {
 	})
 }
 
+// Trace connection path
+func (s *Server) handleTracePath(c *gin.Context) {
+	source := c.Query("source")
+	destination := c.Query("destination")
+	namespace := c.Query("namespace")
+
+	if source == "" || destination == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "source and destination parameters required",
+		})
+		return
+	}
+
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Get full topology first
+	ns := namespace
+	if namespace == "all" || namespace == "" {
+		ns = ""
+	}
+
+	topology, err := client.GetTopology(ctx, ns)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get topology: %v", err),
+		})
+		return
+	}
+
+	// Trace path
+	trace, err := client.TracePath(ctx, source, destination, ns, topology)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to trace path: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, trace)
+}
+
 // Get network policy YAML
 func (s *Server) handleGetNetworkPolicyYaml(c *gin.Context) {
-	_ = c.Param("policy_name") // policyName - TODO: use when implemented
+	policyName := c.Param("policy_name")
 	namespace := c.Query("namespace")
 	client := s.GetK8sClient()
-	if namespace == "" && client != nil {
+	if client == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	if namespace == "" {
 		namespace = client.GetNamespace()
 	}
-	_ = namespace // TODO: use when implemented
 
-	// TODO: Implement network policy YAML retrieval
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Network policy YAML retrieval not yet implemented",
+	ctx := c.Request.Context()
+	policy, err := client.GetClientset().NetworkingV1().NetworkPolicies(namespace).Get(ctx, policyName, metav1.GetOptions{})
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": fmt.Sprintf("NetworkPolicy not found: %v", err),
+		})
+		return
+	}
+
+	// Convert to YAML using JSON as intermediate (simplified)
+	// In production, use proper YAML marshaling library like gopkg.in/yaml.v3
+	jsonData, err := json.MarshalIndent(policy, "", "  ")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to convert to JSON: %v", err),
+		})
+		return
+	}
+	// For now, return JSON-formatted data (can be enhanced with YAML library)
+	yamlData := string(jsonData)
+
+	c.JSON(http.StatusOK, gin.H{
+		"name": policy.Name,
+		"namespace": policy.Namespace,
+		"yaml": yamlData,
 	})
 }
 
-// Get resource YAML
-func (s *Server) handleGetResourceYaml(c *gin.Context) {
-	_ = c.Param("resource_type") // resourceType - TODO: use when implemented
-	_ = c.Param("resource_name") // resourceName - TODO: use when implemented
-	namespace := c.Query("namespace")
-	client := s.GetK8sClient()
-	if namespace == "" && client != nil {
-		namespace = client.GetNamespace()
-	}
-	_ = namespace // TODO: use when implemented
-
-	// TODO: Implement resource YAML retrieval
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Resource YAML retrieval not yet implemented",
-	})
-}
 
 // Get config (Phase 7)
 func (s *Server) handleGetConfig(c *gin.Context) {
@@ -1231,5 +925,365 @@ func (s *Server) handleSetupWizard(c *gin.Context) {
 		"message": "Setup wizard is available via CLI",
 		"command": "stargazer config setup",
 		"info":    "The setup wizard is an interactive CLI tool. Run 'stargazer config setup' in your terminal.",
+	})
+}
+
+// handleMetrics returns Prometheus-compatible metrics
+func (s *Server) handleMetrics(c *gin.Context) {
+	client := s.GetK8sClient()
+	connected := client != nil
+	
+	// Get metrics values
+	requestCount := s.requestCount.Load()
+	errorCount := s.errorCount.Load()
+	durationTotal := s.requestDuration.Load()
+	uptime := time.Since(s.startTime).Seconds()
+	
+	// Calculate average request duration
+	avgDuration := 0.0
+	if requestCount > 0 {
+		avgDuration = float64(durationTotal) / float64(requestCount) / 1e9 // Convert nanoseconds to seconds
+	}
+	
+	// Prometheus format metrics
+	metrics := fmt.Sprintf(`# HELP stargazer_requests_total Total number of HTTP requests
+# TYPE stargazer_requests_total counter
+stargazer_requests_total %d
+
+# HELP stargazer_errors_total Total number of HTTP errors (4xx, 5xx)
+# TYPE stargazer_errors_total counter
+stargazer_errors_total %d
+
+# HELP stargazer_request_duration_seconds Average request duration in seconds
+# TYPE stargazer_request_duration_seconds gauge
+stargazer_request_duration_seconds %.6f
+
+# HELP stargazer_uptime_seconds Server uptime in seconds
+# TYPE stargazer_uptime_seconds gauge
+stargazer_uptime_seconds %.2f
+
+# HELP stargazer_connected Whether stargazer is connected to Kubernetes cluster
+# TYPE stargazer_connected gauge
+stargazer_connected %d
+`,
+		requestCount,
+		errorCount,
+		avgDuration,
+		uptime,
+		map[bool]int{true: 1, false: 0}[connected],
+	)
+	
+	c.Data(http.StatusOK, "text/plain; version=0.0.4", []byte(metrics))
+}
+
+// Empty handlers for removed endpoints (frontend compatibility)
+func (s *Server) handleGetIssuesEmpty(c *gin.Context) {
+	namespace := c.Query("namespace")
+	if namespace == "" {
+		namespace = "all"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"issues":    []interface{}{},
+		"count":     0,
+		"namespace": namespace,
+		"timestamp": time.Now().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleGetPodsEmpty(c *gin.Context) {
+	namespace := c.Query("namespace")
+	if namespace == "" {
+		namespace = "all"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"pods":      []interface{}{},
+		"count":     0,
+		"namespace": namespace,
+	})
+}
+
+func (s *Server) handleGetDeploymentsEmpty(c *gin.Context) {
+	namespace := c.Query("namespace")
+	if namespace == "" {
+		namespace = "all"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"deployments": []interface{}{},
+		"count":      0,
+		"namespace":   namespace,
+	})
+}
+
+// Policy building and management handlers
+
+// Build Cilium Network Policy
+func (s *Server) handleBuildCiliumPolicy(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not initialized",
+		})
+		return
+	}
+
+	var spec k8s.CiliumNetworkPolicySpec
+	if err := c.ShouldBindJSON(&spec); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	builder := client.GetPolicyBuilder()
+	ctx := c.Request.Context()
+	
+	yamlContent, err := builder.BuildCiliumNetworkPolicy(ctx, spec)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to build policy: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"yaml":      yamlContent,
+		"name":      spec.Name,
+		"namespace": spec.Namespace,
+	})
+}
+
+// Apply Cilium Network Policy
+func (s *Server) handleApplyCiliumPolicy(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not initialized",
+		})
+		return
+	}
+
+	var req struct {
+		YAML      string `json:"yaml" binding:"required"`
+		Namespace string `json:"namespace"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	builder := client.GetPolicyBuilder()
+	ctx := c.Request.Context()
+	
+	namespace := req.Namespace
+	if namespace == "" {
+		namespace = client.GetNamespace()
+	}
+
+	err := builder.ApplyCiliumNetworkPolicy(ctx, req.YAML, namespace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to apply policy: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"message":   "Policy applied successfully",
+		"namespace": namespace,
+	})
+}
+
+// Export Cilium Network Policy (just returns the YAML)
+func (s *Server) handleExportCiliumPolicy(c *gin.Context) {
+	var req struct {
+		YAML string `json:"yaml" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	// Return YAML as downloadable content
+	c.Header("Content-Type", "application/x-yaml")
+	c.Header("Content-Disposition", "attachment; filename=cilium-network-policy.yaml")
+	c.Data(http.StatusOK, "application/x-yaml", []byte(req.YAML))
+}
+
+// Delete Cilium Network Policy
+func (s *Server) handleDeleteCiliumPolicy(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not initialized",
+		})
+		return
+	}
+
+	name := c.Param("name")
+	namespace := c.Query("namespace")
+	if namespace == "" {
+		namespace = client.GetNamespace()
+	}
+
+	builder := client.GetPolicyBuilder()
+	ctx := c.Request.Context()
+	
+	err := builder.DeleteCiliumNetworkPolicy(ctx, name, namespace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to delete policy: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Policy deleted successfully",
+	})
+}
+
+// Build Kyverno Policy
+func (s *Server) handleBuildKyvernoPolicy(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not initialized",
+		})
+		return
+	}
+
+	var spec k8s.KyvernoPolicySpec
+	if err := c.ShouldBindJSON(&spec); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	builder := client.GetPolicyBuilder()
+	ctx := c.Request.Context()
+	
+	yamlContent, err := builder.BuildKyvernoPolicy(ctx, spec)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to build policy: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"yaml":      yamlContent,
+		"name":      spec.Name,
+		"namespace": spec.Namespace,
+		"type":      spec.Type,
+	})
+}
+
+// Apply Kyverno Policy
+func (s *Server) handleApplyKyvernoPolicy(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not initialized",
+		})
+		return
+	}
+
+	var req struct {
+		YAML      string `json:"yaml" binding:"required"`
+		Namespace string `json:"namespace"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	builder := client.GetPolicyBuilder()
+	ctx := c.Request.Context()
+	
+	namespace := req.Namespace
+	if namespace == "" {
+		namespace = client.GetNamespace()
+	}
+
+	err := builder.ApplyKyvernoPolicy(ctx, req.YAML, namespace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to apply policy: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"message":   "Policy applied successfully",
+		"namespace": namespace,
+	})
+}
+
+// Export Kyverno Policy (just returns the YAML)
+func (s *Server) handleExportKyvernoPolicy(c *gin.Context) {
+	var req struct {
+		YAML string `json:"yaml" binding:"required"`
+		Type string `json:"type"` // "Policy" or "ClusterPolicy"
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	// Determine filename
+	filename := "kyverno-policy.yaml"
+	if req.Type == "ClusterPolicy" {
+		filename = "kyverno-cluster-policy.yaml"
+	}
+
+	// Return YAML as downloadable content
+	c.Header("Content-Type", "application/x-yaml")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Data(http.StatusOK, "application/x-yaml", []byte(req.YAML))
+}
+
+// Delete Kyverno Policy
+func (s *Server) handleDeleteKyvernoPolicy(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not initialized",
+		})
+		return
+	}
+
+	name := c.Param("name")
+	namespace := c.Query("namespace")
+	isClusterPolicy := c.Query("cluster_policy") == "true"
+	
+	if namespace == "" && !isClusterPolicy {
+		namespace = client.GetNamespace()
+	}
+
+	builder := client.GetPolicyBuilder()
+	ctx := c.Request.Context()
+	
+	err := builder.DeleteKyvernoPolicy(ctx, name, namespace, isClusterPolicy)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to delete policy: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Policy deleted successfully",
 	})
 }

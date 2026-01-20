@@ -1,29 +1,24 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { apiClient, ClusterHealth, Issue } from '@/lib/api';
+import { apiClient, ClusterHealth } from '@/lib/api';
 import HealthMetrics from '@/components/HealthMetrics';
-import IssuesList from '@/components/IssuesList';
 import Navigation from '@/components/Navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
-import PodsDetail from '@/components/PodsDetail';
-import DeploymentsDetail from '@/components/DeploymentsDetail';
 import EventsDetail from '@/components/EventsDetail';
-import ResourcesView from '@/components/ResourcesView';
 import ServiceTopology from '@/components/ServiceTopology';
+import PathTracer from '@/components/PathTracer';
 import StargazerLogo from '@/components/StargazerLogo';
 import Settings from '@/components/Settings';
 import { Icon } from '@/components/SpaceshipIcons';
 
 export default function Home() {
   const [health, setHealth] = useState<ClusterHealth | null>(null);
-  const [issues, setIssues] = useState<Issue[]>([]);
   const [namespace, setNamespace] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [currentSection, setCurrentSection] = useState<string>('dashboard');
-  const [showDetailModal, setShowDetailModal] = useState<'pods' | 'deployments' | 'events' | null>(null);
 
   useEffect(() => {
     // Load theme from localStorage
@@ -94,24 +89,14 @@ export default function Home() {
   const loadData = useCallback(async () => {
     try {
       const ns = namespace === 'all' ? 'all' : namespace || undefined;
-      const [healthData, issuesData] = await Promise.all([
-        apiClient.getHealth(ns).catch(err => {
-          console.error('Error loading health:', err);
-          // Return default health on error, but don't overwrite existing data
-          return null;
-        }),
-        apiClient.getIssues(ns).catch(err => {
-          console.error('Error loading issues:', err);
-          return null; // Return null instead of empty array to preserve existing data
-        }),
-      ]);
+      const healthData = await apiClient.getHealth(ns).catch(err => {
+        console.error('Error loading health:', err);
+        // Return default health on error, but don't overwrite existing data
+        return null;
+      });
       // Only update if we got valid data
       if (healthData) {
         setHealth(healthData);
-      }
-      // Only update issues if we got valid data (not null)
-      if (issuesData !== null) {
-        setIssues(issuesData);
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -121,13 +106,6 @@ export default function Home() {
     }
   }, [namespace]); // loadData depends on namespace
 
-  // Reload issues when namespace changes (if issues are empty)
-  useEffect(() => {
-    if (namespace && issues.length === 0 && !loading) {
-      // Namespace was set but issues are empty, reload them
-      loadData();
-    }
-  }, [namespace, issues.length, loading, loadData]); // Include all dependencies
 
   // Reload data when switching sections (but not on initial load)
   useEffect(() => {
@@ -153,31 +131,22 @@ export default function Home() {
         }
       }
       
-      // Now load health and issues with the correct namespace
+      // Now load health with the correct namespace
       const ns = currentNs === 'all' ? 'all' : currentNs || 'all';
-      const [healthData, issuesData] = await Promise.all([
-        apiClient.getHealth(ns).catch(err => {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error loading health:', err);
-          }
-          // Return default health on error
-          return {
-            pods: { total: 0, healthy: 0 },
-            deployments: { total: 0, healthy: 0 },
-            events: { warnings: 0, errors: 0 },
-            overall_health: 'degraded' as const
-          };
-        }),
-        apiClient.getIssues(ns).catch(err => {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error loading issues:', err);
-          }
-          return [];
-        }),
-      ]);
+      const healthData = await apiClient.getHealth(ns).catch(err => {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error loading health:', err);
+        }
+        // Return default health on error
+        return {
+          pods: { total: 0, healthy: 0 },
+          deployments: { total: 0, healthy: 0 },
+          events: { warnings: 0, errors: 0 },
+          overall_health: 'degraded' as const
+        };
+      });
       
       setHealth(healthData);
-      setIssues(issuesData);
       setInitialLoadComplete(true);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -190,7 +159,6 @@ export default function Home() {
         events: { warnings: 0, errors: 0 },
         overall_health: 'degraded'
       });
-      setIssues([]);
       setInitialLoadComplete(true);
     } finally {
       setLoading(false);
@@ -221,23 +189,6 @@ export default function Home() {
             // Only update if we have valid data
             if (data.health) {
               setHealth(data.health);
-            }
-            // Only update issues if we have valid data (array)
-            // Don't overwrite with empty array if we already have issues (might be a transient error)
-            if (Array.isArray(data.issues)) {
-              // Only update if we got issues, or if current issues list is empty
-              setIssues(prevIssues => {
-                // If new data has issues, always update
-                if (data.issues.length > 0) {
-                  return data.issues;
-                }
-                // If new data is empty but we have existing issues, keep existing (might be transient)
-                if (prevIssues.length > 0 && data.issues.length === 0) {
-                  return prevIssues;
-                }
-                // Otherwise update (both empty, or initial load)
-                return data.issues;
-              });
             }
           }
         } catch (e) {
@@ -270,11 +221,6 @@ export default function Home() {
 
   const handleSectionChange = (section: string) => {
     setCurrentSection(section);
-    setShowDetailModal(null);
-    // Reload data when switching to issues section to ensure it's populated
-    if (section === 'issues' && issues.length === 0) {
-      loadData();
-    }
   };
 
   const getBreadcrumbs = () => {
@@ -283,16 +229,8 @@ export default function Home() {
     switch (currentSection) {
       case 'topology':
         return [...base, { label: 'SERVICE TOPOLOGY' }];
-      case 'resources':
-        return [...base, { label: 'RESOURCES' }];
-      case 'pods':
-        return [...base, { label: 'PODS' }];
-      case 'deployments':
-        return [...base, { label: 'DEPLOYMENTS' }];
       case 'events':
         return [...base, { label: 'EVENTS' }];
-      case 'issues':
-        return [...base, { label: 'ISSUES' }];
       case 'settings':
         return [...base, { label: 'SETTINGS' }];
       default:
@@ -342,11 +280,7 @@ export default function Home() {
                 <h1 className="text-xl font-semibold text-[#e4e4e7] tracking-tight mt-1">
                   {currentSection === 'dashboard' && 'Dashboard'}
                   {currentSection === 'topology' && 'Service Topology'}
-                  {currentSection === 'resources' && 'Resources'}
-                  {currentSection === 'pods' && 'Pods'}
-                  {currentSection === 'deployments' && 'Deployments'}
                   {currentSection === 'events' && 'Events'}
-                  {currentSection === 'issues' && 'Issues'}
                   {currentSection === 'settings' && 'Settings'}
                 </h1>
               </div>
@@ -417,22 +351,10 @@ export default function Home() {
                     <HealthMetrics 
                       health={health} 
                       namespace={namespace}
-                      onPodsClick={() => {
-                        setCurrentSection('pods');
-                        setShowDetailModal(null);
-                      }}
-                      onDeploymentsClick={() => {
-                        setCurrentSection('deployments');
-                        setShowDetailModal(null);
-                      }}
                       onEventsClick={() => {
                         setCurrentSection('events');
-                        setShowDetailModal(null);
                       }}
                     />
-                  </div>
-                  <div className="mb-6">
-                    <IssuesList issues={issues} />
                   </div>
                 </>
               )}
@@ -472,61 +394,12 @@ export default function Home() {
           )}
 
           {currentSection === 'topology' && (
-            <ServiceTopology namespace={namespace} />
-          )}
-
-          {currentSection === 'resources' && (
-            <ResourcesView namespace={namespace} />
-          )}
-
-          {currentSection === 'issues' && (
-            <div className="mb-6">
-              {loading && issues.length === 0 && (
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="card rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className="h-5 w-5 bg-[#1a1a24] rounded animate-pulse" />
-                            <div className="h-6 w-20 bg-[#1a1a24] rounded animate-pulse" />
-                            <div className="h-5 w-32 bg-[#1a1a24] rounded animate-pulse" />
-                          </div>
-                          <div className="h-4 w-full bg-[#1a1a24] rounded animate-pulse" />
-                          <div className="h-4 w-3/4 bg-[#1a1a24] rounded animate-pulse" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {!loading && issues.length === 0 && (
-                <div className="card p-8 text-center">
-                  <Icon name="healthy" className="text-[#10b981] mx-auto mb-4" size="md" />
-                  <h3 className="text-lg font-semibold text-[#e4e4e7] mb-2">No Issues Found</h3>
-                  <p className="text-sm text-[#71717a] mb-4">
-                    Your cluster appears to be healthy, or there was an error loading issues.
-                  </p>
-                  <button
-                    onClick={handleRefresh}
-                    className="px-4 py-2 bg-[#3b82f6] text-white rounded-md hover:bg-[#2563eb] transition-colors"
-                  >
-                    Refresh
-                  </button>
-                </div>
-              )}
-              {issues.length > 0 && <IssuesList issues={issues} />}
-            </div>
-          )}
-
-
-          {/* Detail views in main content when navigating via sidebar */}
-          {currentSection === 'pods' && (
-            <PodsDetail namespace={namespace} />
-          )}
-
-          {currentSection === 'deployments' && (
-            <DeploymentsDetail namespace={namespace} />
+            <>
+              <ServiceTopology namespace={namespace} />
+              <div className="mt-6">
+                <PathTracer namespace={namespace} />
+              </div>
+            </>
           )}
 
           {currentSection === 'events' && (
@@ -539,16 +412,6 @@ export default function Home() {
         </main>
       </div>
 
-      {/* Detail Modals */}
-      {showDetailModal === 'pods' && (
-        <PodsDetail namespace={namespace} onClose={() => setShowDetailModal(null)} />
-      )}
-      {showDetailModal === 'deployments' && (
-        <DeploymentsDetail namespace={namespace} onClose={() => setShowDetailModal(null)} />
-      )}
-      {showDetailModal === 'events' && (
-        <EventsDetail namespace={namespace} onClose={() => setShowDetailModal(null)} />
-      )}
     </div>
   );
 }
