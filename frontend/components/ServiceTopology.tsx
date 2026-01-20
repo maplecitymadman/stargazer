@@ -1,8 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiClient } from '@/lib/api';
 import { Icon } from './SpaceshipIcons';
+import ReactFlow, {
+  Node,
+  Edge,
+  Controls,
+  Background,
+  MiniMap,
+  Connection,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  MarkerType,
+  Position,
+  NodeTypes,
+  Handle,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 interface ServiceTopologyProps {
   namespace?: string;
@@ -828,120 +844,352 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
   );
 }
 
-// Topology Graph Component
-function TopologyGraph({ topology }: { topology: TopologyData | null }) {
-  if (!topology) return null;
-
-  const services = Object.values(topology.services);
-  const nodeSize = 80;
-  const spacing = 200;
-
-  // Simple grid layout for now (can be enhanced with force-directed layout later)
-  const rows = Math.ceil(Math.sqrt(services.length));
-  const cols = Math.ceil(services.length / rows);
-
+// Custom Service Node Component
+function ServiceNode({ data }: { data: any }) {
+  const { service, connInfo, hasBlocked, hasIssues } = data;
+  
   return (
-    <div className="card rounded-lg p-6">
-      <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Service Topology Graph</h3>
-      <div className="relative" style={{ minHeight: `${rows * spacing}px` }}>
-        <svg width="100%" height={rows * spacing} className="overflow-visible">
-          {/* Draw connections */}
-          {services.map((sourceService, idx) => {
-            const sourceConn = topology.connectivity[sourceService.name];
-            if (!sourceConn) return null;
+    <div className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
+      hasBlocked 
+        ? 'bg-[#ef4444]/10 border-[#ef4444]/50 shadow-lg shadow-[#ef4444]/20' 
+        : hasIssues
+        ? 'bg-[#f59e0b]/10 border-[#f59e0b]/50'
+        : 'bg-[#1a1a24] border-[#3b82f6]/30 hover:border-[#3b82f6]/50'
+    }`}>
+      <Handle type="target" position={Position.Top} className="!bg-[#71717a]" />
+      <Handle type="source" position={Position.Bottom} className="!bg-[#71717a]" />
+      
+      <div className="flex items-center gap-2 mb-1">
+        <Icon 
+          name={hasBlocked ? "critical" : "healthy"} 
+          className={hasBlocked ? "text-[#ef4444]" : "text-[#10b981]"} 
+          size="sm" 
+        />
+        <div className="font-semibold text-[#e4e4e7] text-sm truncate max-w-[120px]">
+          {service.name}
+        </div>
+        {service.has_service_mesh && (
+          <div className={`w-2 h-2 rounded-full ${
+            service.service_mesh_type === 'istio' 
+              ? 'bg-[#3b82f6]' 
+              : service.service_mesh_type === 'cilium'
+              ? 'bg-[#8b5cf6]'
+              : 'bg-[#3b82f6]'
+          }`} title={service.service_mesh_type || 'mesh'} />
+        )}
+      </div>
+      
+      <div className="text-xs text-[#71717a] space-y-0.5">
+        <div className="flex items-center justify-between">
+          <span>{service.namespace}</span>
+          <span className="text-[#10b981]">{service.healthy_pods}/{service.pod_count}</span>
+        </div>
+        {connInfo && (
+          <div className="flex items-center gap-1 mt-1">
+            <span className="text-[#10b981]">{connInfo.can_reach?.length || 0}</span>
+            <span className="text-[#71717a]">→</span>
+            <span className="text-[#ef4444]">{connInfo.blocked_from?.length || 0}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-            const sourceRow = Math.floor(idx / cols);
-            const sourceCol = idx % cols;
-            const sourceX = (sourceCol + 1) * spacing;
-            const sourceY = (sourceRow + 1) * spacing;
+// Custom Ingress/Egress Node Component
+function GatewayNode({ data }: { data: any }) {
+  const { type, name, connections } = data;
+  const isIngress = type === 'ingress';
+  
+  return (
+    <div className={`relative px-4 py-3 rounded-lg border-2 bg-gradient-to-br ${
+      isIngress 
+        ? 'from-[#3b82f6]/20 to-[#3b82f6]/5 border-[#3b82f6]/50' 
+        : 'from-[#8b5cf6]/20 to-[#8b5cf6]/5 border-[#8b5cf6]/50'
+    }`}>
+      <Handle type={isIngress ? "source" : "target"} position={isIngress ? Position.Top : Position.Bottom} className="!bg-[#71717a]" />
+      
+      <div className="flex items-center gap-2">
+        <Icon name="network" className={isIngress ? "text-[#3b82f6]" : "text-[#8b5cf6]"} size="sm" />
+        <div className="font-semibold text-[#e4e4e7] text-sm">
+          {isIngress ? 'Ingress' : 'Egress'}
+        </div>
+      </div>
+      <div className="text-xs text-[#71717a] mt-1">
+        {name} • {connections || 0} routes
+      </div>
+    </div>
+  );
+}
 
-            return sourceConn.connections.map((conn) => {
-              const targetIdx = services.findIndex(s => s.name === conn.target);
-              if (targetIdx === -1) return null;
+const nodeTypes: NodeTypes = {
+  service: ServiceNode,
+  gateway: GatewayNode,
+};
 
-              const targetRow = Math.floor(targetIdx / cols);
-              const targetCol = targetIdx % cols;
-              const targetX = (targetCol + 1) * spacing;
-              const targetY = (targetRow + 1) * spacing;
-
-              return (
-                <line
-                  key={`${sourceService.name}-${conn.target}`}
-                  x1={sourceX}
-                  y1={sourceY}
-                  x2={targetX}
-                  y2={targetY}
-                  stroke={conn.allowed ? '#22c55e' : '#ef4444'}
-                  strokeWidth={2}
-                  strokeOpacity={0.3}
-                  markerEnd={conn.allowed ? undefined : "url(#arrow-red)"}
-                />
-              );
-            });
-          })}
-
-          {/* Draw service nodes */}
-          {services.map((service, idx) => {
-            const row = Math.floor(idx / cols);
-            const col = idx % cols;
-            const x = (col + 1) * spacing;
-            const y = (row + 1) * spacing;
-            const conn = topology.connectivity[service.name];
-            const hasBlocked = conn && conn.blocked_from && conn.blocked_from.length > 0;
-
-            return (
-              <g key={service.name}>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={nodeSize / 2}
-                  fill={hasBlocked ? '#ef4444' : '#22c55e'}
-                  fillOpacity={0.2}
-                  stroke={hasBlocked ? '#ef4444' : '#22c55e'}
-                  strokeWidth={2}
-                />
-                <text
-                  x={x}
-                  y={y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="text-xs fill-[#e4e4e7] font-medium"
-                >
-                  {service.name.length > 12 ? service.name.substring(0, 10) + '...' : service.name}
-                </text>
-                {service.has_service_mesh && (
-                  <circle cx={x + nodeSize/2 - 5} cy={y - nodeSize/2 + 5} r={4} fill="#3b82f6" />
+// Topology Graph Component with React Flow
+function TopologyGraph({ topology }: { topology: TopologyData | null }) {
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  
+  const initialNodes = useMemo(() => {
+    if (!topology) return [];
+    
+    const services = Object.values(topology.services);
+    const nodes: Node[] = [];
+    const centerX = 500;
+    const centerY = 400;
+    
+    // Create service nodes with circular layout
+    services.forEach((service, idx) => {
+      const connInfo = topology.connectivity[service.name];
+      const hasBlocked = connInfo?.blocked_from && connInfo.blocked_from.length > 0;
+      const hasIssues = connInfo && (connInfo.blocked_from?.length > 0 || connInfo.connections?.some((c: ServiceConnection) => !c.allowed));
+      
+      // Circular layout
+      const angle = (idx / services.length) * 2 * Math.PI - Math.PI / 2; // Start from top
+      const radius = Math.max(250, Math.sqrt(services.length) * 40);
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      
+      nodes.push({
+        id: service.name,
+        type: 'service',
+        position: { x, y },
+        data: {
+          service,
+          connInfo,
+          hasBlocked,
+          hasIssues,
+        },
+        style: {
+          width: 160,
+        },
+      });
+    });
+    
+    // Add ingress gateway at top center
+    if (topology.ingress && (topology.ingress.gateways?.length > 0 || topology.ingress.kubernetes_ingress?.length > 0)) {
+      const ingressConnections = topology.ingress.connections?.length || 0;
+      nodes.push({
+        id: 'ingress-gateway',
+        type: 'gateway',
+        position: { x: centerX, y: 50 },
+        data: {
+          type: 'ingress',
+          name: 'Ingress Gateway',
+          connections: ingressConnections,
+        },
+        style: {
+          width: 160,
+        },
+      });
+    }
+    
+    // Add egress gateway at bottom center
+    if (topology.egress && topology.egress.gateways?.length > 0) {
+      const egressConnections = topology.egress.connections?.length || 0;
+      nodes.push({
+        id: 'egress-gateway',
+        type: 'gateway',
+        position: { x: centerX, y: 750 },
+        data: {
+          type: 'egress',
+          name: 'Egress Gateway',
+          connections: egressConnections,
+        },
+        style: {
+          width: 160,
+        },
+      });
+    }
+    
+    return nodes;
+  }, [topology]);
+  
+  const initialEdges = useMemo(() => {
+    if (!topology) return [];
+    
+    const services = Object.values(topology.services);
+    const edges: Edge[] = [];
+    
+    // Create edges (connections)
+    services.forEach((sourceService) => {
+      const sourceConn = topology.connectivity[sourceService.name];
+      if (!sourceConn) return;
+      
+      sourceConn.connections.forEach((conn: ServiceConnection) => {
+        edges.push({
+          id: `${sourceService.name}-${conn.target}`,
+          source: sourceService.name,
+          target: conn.target,
+          type: 'smoothstep',
+          animated: conn.allowed && conn.via_service_mesh,
+          style: {
+            stroke: conn.allowed ? '#10b981' : '#ef4444',
+            strokeWidth: conn.blocked_by_policy ? 3 : 2,
+            strokeDasharray: conn.allowed ? '0' : '5,5',
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: conn.allowed ? '#10b981' : '#ef4444',
+            width: 20,
+            height: 20,
+          },
+          label: conn.via_service_mesh ? (conn.service_mesh_type || 'mesh') : undefined,
+          labelStyle: {
+            fill: conn.allowed ? '#10b981' : '#ef4444',
+            fontSize: 10,
+            fontWeight: 600,
+          },
+          labelBgStyle: {
+            fill: '#0a0a0f',
+            fillOpacity: 0.9,
+          },
+        });
+      });
+    });
+    
+    // Add ingress connections
+    if (topology.ingress?.connections) {
+      topology.ingress.connections.forEach((conn: any, idx: number) => {
+        const targetService = services.find(s => s.name === conn.to);
+        if (targetService) {
+          edges.push({
+            id: `ingress-${idx}`,
+            source: 'ingress-gateway',
+            target: targetService.name,
+            type: 'smoothstep',
+            style: {
+              stroke: conn.allowed ? '#3b82f6' : '#ef4444',
+              strokeWidth: 2,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: conn.allowed ? '#3b82f6' : '#ef4444',
+              width: 20,
+              height: 20,
+            },
+          });
+        }
+      });
+    }
+    
+    // Add egress connections
+    if (topology.egress?.connections) {
+      topology.egress.connections.forEach((conn: any, idx: number) => {
+        const sourceService = services.find(s => s.name === conn.from);
+        if (sourceService) {
+          edges.push({
+            id: `egress-${idx}`,
+            source: sourceService.name,
+            target: 'egress-gateway',
+            type: 'smoothstep',
+            style: {
+              stroke: conn.allowed ? '#8b5cf6' : '#ef4444',
+              strokeWidth: 2,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: conn.allowed ? '#8b5cf6' : '#ef4444',
+              width: 20,
+              height: 20,
+            },
+          });
+        }
+      });
+    }
+    
+    return edges;
+  }, [topology]);
+  
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
+  
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    setSelectedNode(prev => prev === node.id ? null : node.id);
+  }, []);
+  
+  if (!topology) return null;
+  
+  return (
+    <div className="card rounded-lg p-0 overflow-hidden">
+      <div className="p-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-[#e4e4e7] flex items-center gap-2">
+          <Icon name="network" className="text-[#3b82f6]" size="sm" />
+          Network Topology
+        </h3>
+        <div className="flex items-center gap-4 text-xs text-[#71717a]">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#10b981]"></div>
+            <span>Allowed</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+            <span>Blocked</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#3b82f6]"></div>
+            <span>Mesh</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="h-[600px] bg-[#0a0a0f]">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={onNodeClick}
+          nodeTypes={nodeTypes}
+          fitView
+          minZoom={0.2}
+          maxZoom={2}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+        >
+          <Background color="#1a1a24" gap={20} size={1} />
+          <Controls 
+            className="bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] rounded-lg"
+            showInteractive={false}
+          />
+          <MiniMap 
+            className="bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] rounded-lg"
+            nodeColor={(node) => {
+              if (node.data?.hasBlocked) return '#ef4444';
+              if (node.data?.hasIssues) return '#f59e0b';
+              return '#10b981';
+            }}
+            maskColor="rgba(0, 0, 0, 0.6)"
+          />
+        </ReactFlow>
+      </div>
+      
+      {selectedNode && selectedNode !== 'ingress-gateway' && selectedNode !== 'egress-gateway' && (
+        <div className="p-4 border-t border-[rgba(255,255,255,0.08)] bg-[#1a1a24]">
+          <div className="text-sm font-semibold text-[#e4e4e7] mb-2">
+            {selectedNode} Details
+          </div>
+          <div className="text-xs text-[#71717a] space-y-1">
+            {topology.services[selectedNode] && (
+              <>
+                <div>Namespace: {topology.services[selectedNode].namespace}</div>
+                <div>Type: {topology.services[selectedNode].type}</div>
+                <div>Cluster IP: {topology.services[selectedNode].cluster_ip}</div>
+                {topology.connectivity[selectedNode] && (
+                  <div>
+                    Connections: {topology.connectivity[selectedNode].can_reach?.length || 0} allowed, {topology.connectivity[selectedNode].blocked_from?.length || 0} blocked
+                  </div>
                 )}
-              </g>
-            );
-          })}
-
-          {/* Arrow markers */}
-          <defs>
-            <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-              <path d="M0,0 L0,6 L9,3 z" fill="#ef4444" />
-            </marker>
-          </defs>
-        </svg>
-      </div>
-      <div className="mt-4 flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500/20 border border-green-500 rounded"></div>
-          <span className="text-[#71717a]">Allowed Connection</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-500/20 border border-red-500 rounded"></div>
-          <span className="text-[#71717a]">Blocked Connection</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500/20 border border-green-500 rounded"></div>
-          <span className="text-[#71717a]">Service Node</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-          <span className="text-[#71717a]">Service Mesh</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
