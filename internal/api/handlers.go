@@ -492,10 +492,9 @@ func (s *Server) handleGetTopology(c *gin.Context) {
 
 // Get service connections
 func (s *Server) handleGetServiceConnections(c *gin.Context) {
-	serviceName := c.Param("service_name")
-	namespace := c.Query("namespace")
-	
 	// Service connections endpoint - returns empty for now
+	_ = c.Param("service_name") // serviceName - reserved for future use
+	_ = c.Query("namespace")    // namespace - reserved for future use
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error": "Service connections not yet implemented",
 	})

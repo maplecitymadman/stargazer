@@ -907,7 +907,11 @@ function GatewayNode({ data }: { data: any }) {
         ? 'from-[#3b82f6]/20 to-[#3b82f6]/5 border-[#3b82f6]/50' 
         : 'from-[#8b5cf6]/20 to-[#8b5cf6]/5 border-[#8b5cf6]/50'
     }`}>
-      <Handle type={isIngress ? "source" : "target"} position={isIngress ? Position.Top : Position.Bottom} className="!bg-[#71717a]" />
+      {isIngress ? (
+        <Handle type="source" position={Position.Bottom} className="!bg-[#3b82f6] !w-3 !h-3" />
+      ) : (
+        <Handle type="target" position={Position.Top} className="!bg-[#8b5cf6] !w-3 !h-3" />
+      )}
       
       <div className="flex items-center gap-2">
         <Icon name="network" className={isIngress ? "text-[#3b82f6]" : "text-[#8b5cf6]"} size="sm" />
