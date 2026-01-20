@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient, ClusterHealth } from '@/lib/api';
 import HealthMetrics from '@/components/HealthMetrics';
+import Dashboard from '@/components/Dashboard';
 import Navigation from '@/components/Navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import EventsDetail from '@/components/EventsDetail';
@@ -317,7 +318,7 @@ export default function Home() {
         <main className="px-6 py-6">
           {currentSection === 'dashboard' && (
             <>
-              {loading && (
+              {loading && health === null && (
                 <div className="space-y-6">
                   {/* Health Metrics Skeleton */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -329,19 +330,6 @@ export default function Home() {
                         <div className="h-1 bg-[#1a1a24] rounded-full animate-pulse" />
                       </div>
                     ))}
-                  </div>
-                  {/* Issues List Skeleton */}
-                  <div className="card rounded-lg p-5">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="h-24 bg-[#1a1a24] rounded-lg animate-pulse" />
-                      ))}
-                    </div>
-                    <div className="space-y-3">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="h-20 bg-[#1a1a24] rounded-lg animate-pulse" />
-                      ))}
-                    </div>
                   </div>
                 </div>
               )}
@@ -356,6 +344,14 @@ export default function Home() {
                       }}
                     />
                   </div>
+                  <Dashboard 
+                    namespace={namespace}
+                    onNavigateToTopology={() => setCurrentSection('topology')}
+                    onNavigateToService={(serviceName) => {
+                      setCurrentSection('topology');
+                      // Could set selected service in topology view
+                    }}
+                  />
                 </>
               )}
               {!loading && !health && (

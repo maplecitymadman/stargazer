@@ -298,6 +298,13 @@ export const apiClient = {
     return response.data;
   },
 
+  async getServices(namespace?: string): Promise<any> {
+    const response = await api.get('/api/services', {
+      params: namespace ? { namespace } : {},
+    });
+    return response.data;
+  },
+
   async getProvidersConfig(): Promise<any> {
     const response = await api.get('/api/config/providers');
     return response.data;

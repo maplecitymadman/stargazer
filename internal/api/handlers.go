@@ -285,6 +285,60 @@ func (s *Server) handleGetServices(c *gin.Context) {
 	})
 }
 
+// Get all services across all namespaces for PathTracer resource selection
+func (s *Server) handleGetAllServices(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"services": []gin.H{},
+			"count":    0,
+			"error":    "Kubernetes client not initialized. Please configure kubeconfig.",
+		})
+		return
+	}
+
+	namespace := c.Query("namespace")
+	if namespace == "" {
+		namespace = "all"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	services, err := client.GetServices(ctx, namespace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get services: %v", err),
+		})
+		return
+	}
+
+	// Format for PathTracer: include ingress-gateway and egress-gateway options
+	formatted := []gin.H{
+		{ "name": "ingress-gateway", "namespace": "", "type": "ingress", "display": "Ingress Gateway" },
+		{ "name": "egress-gateway", "namespace": "", "type": "egress", "display": "Egress Gateway" },
+		{ "name": "external", "namespace": "", "type": "external", "display": "External" },
+	}
+
+	for _, svc := range services {
+		displayName := svc.Name
+		if svc.Namespace != "" {
+			displayName = fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
+		}
+		formatted = append(formatted, gin.H{
+			"name":      svc.Name,
+			"namespace": svc.Namespace,
+			"type":      "service",
+			"display":   displayName,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"services": formatted,
+		"count":    len(formatted),
+	})
+}
+
 // Get events with query param (v2 style)
 func (s *Server) handleGetEventsQuery(c *gin.Context) {
 	client := s.GetK8sClient()

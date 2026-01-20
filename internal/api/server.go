@@ -147,6 +147,7 @@ func (s *Server) setupRoutes() {
 		
 		// Legacy path-based routes (for compatibility)
 		api.GET("/namespaces/:namespace/services", s.handleGetServices)
+		api.GET("/services", s.handleGetAllServices) // Get all services for PathTracer
 		api.GET("/namespaces/:namespace/events", s.handleGetEvents)
 		api.GET("/nodes", s.handleGetNodes)
 
