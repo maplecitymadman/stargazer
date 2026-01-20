@@ -88,6 +88,7 @@ func (c *Client) GetPods(ctx context.Context, namespace string) ([]Pod, error) {
 
 // GetPod retrieves a single pod by name and namespace
 func (c *Client) GetPod(ctx context.Context, namespace, name string) (*Pod, error) {
+	// Fix Issue #10: Resolve namespace BEFORE creating cache key to prevent race condition
 	if namespace == "" {
 		namespace = c.namespace
 	}

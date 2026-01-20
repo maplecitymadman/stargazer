@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -65,12 +66,19 @@ func (s *Server) handleGetContexts(c *gin.Context) {
 		return
 	}
 
+	// Get cluster name from kubeconfig
+	clusterName := client.GetClusterName()
+	if clusterName == "" || clusterName == "unknown" {
+		// Fallback to context name if cluster name can't be determined
+		clusterName = client.GetContext()
+	}
+
 	// Return current context info
 	c.JSON(http.StatusOK, gin.H{
 		"contexts": []gin.H{
 			{
 				"name":           client.GetContext(),
-				"cluster":        client.GetContext(),
+				"cluster":        clusterName,
 				"user":           "",
 				"namespace":      client.GetNamespace(),
 				"server":         "",
@@ -95,11 +103,18 @@ func (s *Server) handleGetCurrentContext(c *gin.Context) {
 		return
 	}
 
+	// Get cluster name from kubeconfig
+	clusterName := client.GetClusterName()
+	if clusterName == "" || clusterName == "unknown" {
+		// Fallback to context name if cluster name can't be determined
+		clusterName = client.GetContext()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"context": client.GetContext(),
 		"info": gin.H{
 			"name":           client.GetContext(),
-			"cluster":        client.GetContext(),
+			"cluster":        clusterName,
 			"namespace":      client.GetNamespace(),
 			"cloud_provider": "unknown",
 		},
@@ -351,6 +366,12 @@ func (s *Server) handleGetEventsQuery(c *gin.Context) {
 	}
 
 	namespace := c.Query("namespace")
+	if err := validateNamespace(namespace); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid namespace parameter: %v", err),
+		})
+		return
+	}
 	includeNormal := c.Query("include_normal") == "true"
 	
 	// Support "all" for all namespaces
@@ -448,8 +469,36 @@ func (s *Server) handleTroubleshoot(c *gin.Context) {
 }
 
 // Get service topology with Cilium, Istio, and Kyverno support
+// validateNamespace validates a namespace parameter
+func validateNamespace(ns string) error {
+	if ns == "" || ns == "all" {
+		return nil
+	}
+	// Kubernetes namespace validation: DNS-1123 label format
+	if len(ns) > 253 {
+		return fmt.Errorf("namespace too long (max 253 characters)")
+	}
+	// Basic validation - alphanumeric and hyphens only, must start/end with alphanumeric
+	if !strings.HasPrefix(ns, "kube-") && !strings.HasPrefix(ns, "istio-") {
+		// Allow system namespaces
+		for _, char := range ns {
+			if !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-') {
+				return fmt.Errorf("invalid namespace format: %s", ns)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Server) handleGetTopology(c *gin.Context) {
 	namespace := c.Query("namespace")
+	// Validate namespace parameter
+	if err := validateNamespace(namespace); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid namespace parameter: %v", err),
+		})
+		return
+	}
 	// Support "all" for all namespaces
 	ns := namespace
 	if namespace == "all" || namespace == "" {
@@ -466,20 +515,6 @@ func (s *Server) handleGetTopology(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	topology, err := client.GetTopology(ctx, ns)
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"topologyErr": err != nil,
-			"topologyErrMsg": func() string { if err != nil { return err.Error() } else { return "" } }(),
-			"hasIngress": topology != nil && len(topology.Ingress.Gateways) > 0,
-			"hasEgress": topology != nil && len(topology.Egress.Gateways) > 0,
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"handlers.go:416","message":"handleGetTopology result","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get topology: %v", err),
@@ -1282,6 +1317,12 @@ func (s *Server) handleApplyKyvernoPolicy(c *gin.Context) {
 // Get recommendations based on best practices
 func (s *Server) handleGetRecommendations(c *gin.Context) {
 	namespace := c.Query("namespace")
+	if err := validateNamespace(namespace); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid namespace parameter: %v", err),
+		})
+		return
+	}
 	ns := namespace
 	if namespace == "all" || namespace == "" {
 		ns = ""
@@ -1325,6 +1366,12 @@ func (s *Server) handleGetRecommendations(c *gin.Context) {
 // Get compliance score
 func (s *Server) handleGetComplianceScore(c *gin.Context) {
 	namespace := c.Query("namespace")
+	if err := validateNamespace(namespace); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid namespace parameter: %v", err),
+		})
+		return
+	}
 	ns := namespace
 	if namespace == "all" || namespace == "" {
 		ns = ""

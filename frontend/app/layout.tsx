@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Toaster from '@/components/Toaster'
 
 export const metadata: Metadata = {
   title: 'Stargazer - Kubernetes Troubleshooting',
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {children}
+        <Toaster />
       </body>
     </html>
   )

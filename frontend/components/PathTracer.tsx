@@ -115,7 +115,8 @@ export default function PathTracer({ namespace }: PathTracerProps) {
         <button
           onClick={loadServices}
           disabled={loadingServices}
-          className="px-3 py-1.5 text-sm bg-[#1a1a24] hover:bg-[#252530] text-[#71717a] rounded-md transition-all flex items-center gap-2"
+          className="px-3 py-1.5 text-sm bg-[#1a1a24] hover:bg-[#252530] text-[#71717a] rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+          aria-label="Refresh services list"
         >
           <Icon name={loadingServices ? "loading" : "refresh"} className="text-[#71717a]" size="sm" />
           Refresh Services
@@ -222,7 +223,8 @@ export default function PathTracer({ namespace }: PathTracerProps) {
         <button
           onClick={handleTrace}
           disabled={tracing || !source || !destination}
-          className="w-full px-4 py-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+          className="w-full px-4 py-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+          aria-label="Trace connection path"
         >
           {tracing ? (
             <>

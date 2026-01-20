@@ -40,8 +40,12 @@ func (c *Client) GetPodLogs(ctx context.Context, namespace, podName string, tail
 	}
 	defer stream.Close()
 
+	// Fix Issue #6: Add 10MB limit using io.LimitReader to prevent buffer overflow
+	const maxLogSize = 10 * 1024 * 1024 // 10MB limit
+	limitedReader := io.LimitReader(stream, maxLogSize)
+
 	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, stream)
+	_, err = io.Copy(buf, limitedReader)
 	if err != nil {
 		return "", fmt.Errorf("error reading logs: %w", err)
 	}

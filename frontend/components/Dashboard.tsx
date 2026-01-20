@@ -56,6 +56,17 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
     conn.blocked_from && conn.blocked_from.length > 0
   ).length : 0;
 
+  // Service mesh connections - count connections that go through service mesh
+  const meshConnections = topology ? Object.values(topology.connectivity || {}).reduce((total: number, conn: any) => {
+    const meshCount = (conn.connections || []).filter((c: any) => c.via_service_mesh).length;
+    return total + meshCount;
+  }, 0) : 0;
+  
+  // Calculate mTLS coverage - services with mesh that have strict mTLS
+  const servicesWithMesh = summary.services_with_mesh || 0;
+  const totalServices = summary.total_services || 0;
+  const meshCoveragePercent = totalServices > 0 ? Math.round((servicesWithMesh / totalServices) * 100) : 0;
+  
   const ingressBlocked = topology?.ingress?.connections?.filter((c: any) => !c.allowed).length || 0;
   const egressBlocked = topology?.egress?.connections?.filter((c: any) => !c.allowed).length || 0;
 
@@ -66,7 +77,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         {/* Connection Health */}
         <button
           onClick={() => onNavigate?.('traffic-analysis')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left ${
+          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
             connectionHealth < 80 ? 'border-[#ef4444]/30' : connectionHealth < 100 ? 'border-[#f59e0b]/30' : ''
           }`}
         >
@@ -88,44 +99,60 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
           </div>
         </button>
 
-        {/* Blocked Connections */}
+        {/* Service Mesh Connections */}
         <button
-          onClick={() => onNavigate?.('troubleshooting', 'blocked')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left ${
-            summary.blocked_connections > 0 ? 'border-[#ef4444]/30' : ''
+          onClick={() => onNavigate?.('traffic-analysis', 'topology')}
+          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
+            meshCoveragePercent >= 80 ? 'border-[#10b981]/30' : meshCoveragePercent >= 50 ? 'border-[#f59e0b]/30' : ''
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-[#71717a]">Blocked</div>
-            <Icon name="critical" className={summary.blocked_connections > 0 ? "text-[#ef4444]" : "text-[#71717a]"} size="sm" />
+            <div className="text-xs text-[#71717a]">Service Mesh</div>
+            <Icon 
+              name={meshCoveragePercent >= 80 ? "healthy" : meshCoveragePercent >= 50 ? "degraded" : "info"} 
+              className={meshCoveragePercent >= 80 ? "text-[#10b981]" : meshCoveragePercent >= 50 ? "text-[#f59e0b]" : "text-[#71717a]"} 
+              size="sm" 
+            />
           </div>
-          <div className={`text-2xl font-bold ${summary.blocked_connections > 0 ? 'text-[#ef4444]' : 'text-[#e4e4e7]'}`}>
-            {summary.blocked_connections || 0}
+          <div className={`text-2xl font-bold ${
+            meshCoveragePercent >= 80 ? 'text-[#10b981]' : meshCoveragePercent >= 50 ? 'text-[#f59e0b]' : 'text-[#e4e4e7]'
+          }`}>
+            {meshConnections}
           </div>
-          <div className="text-xs text-[#71717a] mt-1">connections</div>
+          <div className="text-xs text-[#71717a] mt-1">
+            {meshCoveragePercent}% coverage
+          </div>
         </button>
 
-        {/* Services with Issues */}
+        {/* Policy Enforcement Rate */}
         <button
-          onClick={() => onNavigate?.('troubleshooting', 'services')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left ${
-            servicesWithIssues > 0 ? 'border-[#f59e0b]/30' : ''
+          onClick={() => onNavigate?.('network-policies')}
+          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
+            connectionHealth >= 95 ? 'border-[#10b981]/30' : connectionHealth >= 80 ? 'border-[#f59e0b]/30' : ''
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-[#71717a]">Services Issues</div>
-            <Icon name="degraded" className={servicesWithIssues > 0 ? "text-[#f59e0b]" : "text-[#71717a]"} size="sm" />
+            <div className="text-xs text-[#71717a]">Policy Enforcement</div>
+            <Icon 
+              name={connectionHealth >= 95 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"} 
+              className={connectionHealth >= 95 ? "text-[#10b981]" : connectionHealth >= 80 ? "text-[#f59e0b]" : "text-[#ef4444]"} 
+              size="sm" 
+            />
           </div>
-          <div className={`text-2xl font-bold ${servicesWithIssues > 0 ? 'text-[#f59e0b]' : 'text-[#e4e4e7]'}`}>
-            {servicesWithIssues}
+          <div className={`text-2xl font-bold ${
+            connectionHealth >= 95 ? 'text-[#10b981]' : connectionHealth >= 80 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+          }`}>
+            {connectionHealth}%
           </div>
-          <div className="text-xs text-[#71717a] mt-1">need attention</div>
+          <div className="text-xs text-[#71717a] mt-1">
+            {summary.allowed_connections || 0} / {summary.total_connections || 0} allowed
+          </div>
         </button>
 
         {/* Compliance Score */}
         <button
-          onClick={() => onNavigate?.('troubleshooting', 'recommendations')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left ${
+          onClick={() => onNavigate?.('compliance', 'score')}
+          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
             (score?.score || 0) < 60 ? 'border-[#ef4444]/30' : (score?.score || 0) < 80 ? 'border-[#f59e0b]/30' : ''
           }`}
         >
@@ -152,7 +179,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <button
           onClick={() => onNavigate?.('traffic-analysis', 'topology')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left"
+          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
         >
           <div className="flex items-center gap-2 mb-2">
             <Icon name="network" className="text-[#3b82f6]" size="sm" />
@@ -165,7 +192,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
 
         <button
           onClick={() => onNavigate?.('traffic-analysis', 'path-trace')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left"
+          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
         >
           <div className="flex items-center gap-2 mb-2">
             <Icon name="network" className="text-[#8b5cf6]" size="sm" />
@@ -176,7 +203,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
 
         <button
           onClick={() => onNavigate?.('network-policies')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left"
+          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
         >
           <div className="flex items-center gap-2 mb-2">
             <Icon name="scan" className="text-[#10b981]" size="sm" />
@@ -188,12 +215,12 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         </button>
 
         <button
-          onClick={() => onNavigate?.('troubleshooting')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left"
+          onClick={() => onNavigate?.('compliance')}
+          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
         >
           <div className="flex items-center gap-2 mb-2">
-            <Icon name="critical" className="text-[#f59e0b]" size="sm" />
-            <div className="text-sm font-semibold text-[#e4e4e7]">Troubleshoot</div>
+            <Icon name="scan" className="text-[#3b82f6]" size="sm" />
+            <div className="text-sm font-semibold text-[#e4e4e7]">Compliance</div>
           </div>
           <div className="text-xs text-[#71717a]">
             {score?.recommendations_count || 0} recommendations
@@ -205,7 +232,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={() => onNavigate?.('traffic-analysis', 'ingress')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left ${
+          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
             ingressBlocked > 0 ? 'border-[#ef4444]/30' : ''
           }`}
         >
@@ -227,7 +254,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
 
         <button
           onClick={() => onNavigate?.('traffic-analysis', 'egress')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left ${
+          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
             egressBlocked > 0 ? 'border-[#ef4444]/30' : ''
           }`}
         >

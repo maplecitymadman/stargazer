@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,8 +13,14 @@ import (
 	"github.com/maplecitymadman/stargazer/internal/k8s"
 )
 
+// Fix Issue #4: Handle JSON marshaling errors properly
 func toJSON(v interface{}) string {
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Log marshaling error and return error placeholder
+		fmt.Printf("[ERROR] JSON marshaling failed: %v\n", err)
+		return "{\"error\": \"marshaling failed\"}"
+	}
 	return string(b)
 }
 
@@ -27,18 +32,16 @@ type Server struct {
 	wsHub        *Hub // WebSocket hub for broadcasting
 	policyWatcher *k8s.PolicyWatcher // Policy watcher for real-time updates
 	mu           sync.RWMutex // Protects k8sClient and discovery
-	
+
+	// Fix Issue #3: Add cancel function for policy watcher context
+	policyWatcherCancel context.CancelFunc
+
 	// Metrics
 	requestCount    atomic.Uint64
 	errorCount      atomic.Uint64
 	requestDuration atomic.Uint64 // Total duration in nanoseconds
 	startTime       time.Time
 }
-
-var (
-	serverMu sync.RWMutex // Global mutex for server operations
-)
-
 
 // Config holds server configuration
 type Config struct {
@@ -96,8 +99,9 @@ func NewServer(cfg Config) *Server {
 
 // UpdateK8sClient updates the Kubernetes client (for kubeconfig changes)
 func (s *Server) UpdateK8sClient(client *k8s.Client) {
-	serverMu.Lock()
-	defer serverMu.Unlock()
+	// Fix Issue #1: Use instance-level mutex instead of global serverMu
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.k8sClient = client
 	if client != nil {
 		s.discovery = k8s.NewDiscovery(client)
@@ -108,8 +112,9 @@ func (s *Server) UpdateK8sClient(client *k8s.Client) {
 
 // GetK8sClient returns the current Kubernetes client (thread-safe)
 func (s *Server) GetK8sClient() *k8s.Client {
-	serverMu.RLock()
-	defer serverMu.RUnlock()
+	// Fix Issue #1: Use instance-level mutex instead of global serverMu
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.k8sClient
 }
 
@@ -154,15 +159,23 @@ func (s *Server) setupRoutes() {
 		// Troubleshooting (Phase 6)
 		api.POST("/troubleshoot", s.handleTroubleshoot)
 
-		// Topology (Phase 2 deferred)
-		api.GET("/topology", s.handleGetTopology)
-		api.GET("/topology/:service_name", s.handleGetServiceConnections)
-		api.GET("/topology/trace", s.handleTracePath)
+		// Topology (Phase 2 deferred) - expensive endpoints, stricter rate limiting
+		topologyGroup := api.Group("/topology")
+		topologyGroup.Use(rateLimitMiddleware(5)) // 5 req/min for expensive topology calls
+		{
+			topologyGroup.GET("", s.handleGetTopology)
+			topologyGroup.GET("/:service_name", s.handleGetServiceConnections)
+			topologyGroup.GET("/trace", s.handleTracePath)
+		}
 		api.GET("/networkpolicy/:policy_name", s.handleGetNetworkPolicyYaml)
 
-		// Recommendations
-		api.GET("/recommendations", s.handleGetRecommendations)
-		api.GET("/recommendations/score", s.handleGetComplianceScore)
+		// Recommendations - expensive endpoints, stricter rate limiting
+		recommendationsGroup := api.Group("/recommendations")
+		recommendationsGroup.Use(rateLimitMiddleware(10)) // 10 req/min
+		{
+			recommendationsGroup.GET("", s.handleGetRecommendations)
+			recommendationsGroup.GET("/score", s.handleGetComplianceScore)
+		}
 
 		// Policy building and management
 		api.POST("/policies/cilium/build", s.handleBuildCiliumPolicy)
@@ -234,8 +247,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s.policyWatcher != nil {
 		s.policyWatcher.Stop()
 	}
+	// Fix Issue #3: Cancel policy watcher context to properly clean up goroutines
+	if s.policyWatcherCancel != nil {
+		s.policyWatcherCancel()
+	}
 	s.mu.Unlock()
-	
+
 	// Close WebSocket hub
 	s.wsHub.Shutdown()
 	return nil
@@ -243,31 +260,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // startPolicyWatcher starts watching for policy changes and broadcasts via WebSocket
 func (s *Server) startPolicyWatcher() {
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{"starting": true}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"server.go:247","message":"startPolicyWatcher entry","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		os.WriteFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", []byte(logLine+"\n"), 0644)
-	}()
-	// #endregion
 	client := s.GetK8sClient()
 	if client == nil {
-		// #region agent log
-		func() {
-			logData := map[string]interface{}{"k8sClientNil": true}
-			logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"server.go:252","message":"PolicyWatcher skipped - no K8s client","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-			f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			f.WriteString(logLine + "\n")
-			f.Close()
-		}()
-		// #endregion
 		return
 	}
 
 	s.mu.Lock()
 	s.policyWatcher = client.NewPolicyWatcher()
 	s.mu.Unlock()
-	
+
 	s.policyWatcher.OnPolicyChange(func(eventType, policyType, name, namespace string) {
 		// Broadcast policy change event via WebSocket
 		message := Message{
@@ -283,33 +284,20 @@ func (s *Server) startPolicyWatcher() {
 		s.wsHub.Broadcast(message)
 	})
 
-	ctx := context.Background()
+	// Fix Issue #3: Use cancellable context instead of context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	s.mu.Lock()
+	s.policyWatcherCancel = cancel
+	s.mu.Unlock()
+
 	if err := s.policyWatcher.Start(ctx); err != nil {
-		// #region agent log
-		func() {
-			logData := map[string]interface{}{"error": err.Error()}
-			logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"server.go:275","message":"PolicyWatcher start failed","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-			f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			f.WriteString(logLine + "\n")
-			f.Close()
-		}()
-		// #endregion
 		fmt.Printf("[PolicyWatcher] Failed to start: %v\n", err)
 		return
 	}
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{"started": true}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"server.go:280","message":"PolicyWatcher started","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 
-	// Keep watcher running (will be stopped when server shuts down)
-	// The goroutines started by watcher.Start() will run until stopCh is closed
-	select {} // Block forever until process exits
+	// Keep watcher running (will be stopped when server shuts down via context cancellation)
+	// The goroutines started by watcher.Start() will run until ctx is cancelled
+	<-ctx.Done()
 }
 
 // loggerMiddleware provides custom logging and metrics tracking

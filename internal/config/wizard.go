@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // Wizard provides an interactive setup experience
@@ -250,15 +252,17 @@ func (w *Wizard) promptBool(prompt string, defaultValue bool) (bool, error) {
 	return input == "y" || input == "yes", nil
 }
 
+// Fix Issue #8: Implement proper password masking using golang.org/x/term
 func (w *Wizard) promptPassword(prompt string) (string, error) {
 	fmt.Printf("%s: ", prompt)
 
-	// Note: In a real implementation, you'd want to use terminal.ReadPassword
-	// to hide the input. For now, we'll just read normally.
-	input, err := w.reader.ReadString('\n')
+	// Use terminal.ReadPassword to hide password input
+	// This reads from stdin (file descriptor 0) and disables echo
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println() // Print newline after password input
 	if err != nil {
 		return "", err
 	}
 
-	return strings.TrimSpace(input), nil
+	return strings.TrimSpace(string(passwordBytes)), nil
 }

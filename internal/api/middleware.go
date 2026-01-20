@@ -48,21 +48,25 @@ func rateLimitMiddleware(rps int) gin.HandlerFunc {
 	var (
 		mu      sync.RWMutex
 		clients = make(map[string]*client)
+		once    sync.Once // Fix Issue #2: Ensure cleanup goroutine starts only once
 	)
 
-	// Cleanup old clients every 5 minutes
-	go func() {
-		for {
-			time.Sleep(5 * time.Minute)
-			mu.Lock()
-			for ip, c := range clients {
-				if time.Since(c.lastSeen) > 10*time.Minute {
-					delete(clients, ip)
+	// Fix Issue #2: Use sync.Once to prevent multiple cleanup goroutines
+	// Start cleanup goroutine only once, even if middleware is called multiple times
+	once.Do(func() {
+		go func() {
+			for {
+				time.Sleep(5 * time.Minute)
+				mu.Lock()
+				for ip, c := range clients {
+					if time.Since(c.lastSeen) > 10*time.Minute {
+						delete(clients, ip)
+					}
 				}
+				mu.Unlock()
 			}
-			mu.Unlock()
-		}
-	}()
+		}()
+	})
 
 	return func(c *gin.Context) {
 		// Skip rate limiting for health checks

@@ -1,0 +1,226 @@
+# Stargazer Configuration Example
+# Copy this file to ~/.stargazer/config.yaml and customize as needed
+
+# ==============================================================================
+# Kubernetes Configuration
+# ==============================================================================
+kubeconfig:
+  # Path to kubeconfig file (auto-detected if not specified)
+  path: ~/.kube/config
+
+  # Kubernetes context to use (uses current-context if not specified)
+  context: my-cluster-context
+
+  # Default namespace (optional)
+  namespace: default
+
+# ==============================================================================
+# API Server Configuration
+# ==============================================================================
+api:
+  # Server port
+  port: 8000
+
+  # Enable CORS (set to true for development, false for production)
+  enable_cors: false
+
+  # Rate limiting (requests per second)
+  rate_limit_rps: 100
+
+  # Rate limit burst size
+  rate_limit_burst: 200
+
+  # Enable metrics endpoint
+  enable_metrics: true
+
+# ==============================================================================
+# Storage Configuration
+# ==============================================================================
+storage:
+  # Base directory for storing data
+  path: ~/.stargazer
+
+  # Maximum scan results to keep
+  max_scan_results: 100
+
+  # Auto-cleanup old scans (days)
+  cleanup_after_days: 30
+
+# ==============================================================================
+# Cache Configuration
+# ==============================================================================
+cache:
+  # Cache TTL in seconds
+  ttl: 30
+
+  # Enable caching
+  enabled: true
+
+  # Maximum cache size (MB)
+  max_size_mb: 100
+
+# ==============================================================================
+# LLM Providers Configuration
+# ==============================================================================
+llm:
+  # Default provider to use (openai, anthropic, google, ollama)
+  default_provider: openai
+
+  providers:
+    openai:
+      enabled: true
+      api_key: sk-your-openai-api-key-here
+      model: gpt-4
+      base_url: https://api.openai.com/v1
+      timeout: 30
+      max_tokens: 2000
+
+    anthropic:
+      enabled: false
+      api_key: sk-ant-your-anthropic-api-key-here
+      model: claude-3-sonnet-20240229
+      base_url: https://api.anthropic.com
+      timeout: 30
+      max_tokens: 2000
+
+    google:
+      enabled: false
+      api_key: your-google-api-key-here
+      model: gemini-pro
+      timeout: 30
+
+    ollama:
+      enabled: false
+      model: llama2
+      base_url: http://localhost:11434
+      timeout: 120
+      # Note: Ollama doesn't require an API key
+
+# ==============================================================================
+# Discovery & Scanning Configuration
+# ==============================================================================
+discovery:
+  # Enable automatic scanning on startup
+  auto_scan: false
+
+  # Scan interval (minutes) - 0 disables periodic scanning
+  scan_interval: 30
+
+  # Namespaces to scan (empty = all namespaces)
+  namespaces: []
+
+  # Skip system namespaces
+  skip_system_namespaces: true
+
+  # System namespace patterns to skip
+  system_namespace_patterns:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    - istio-system
+    - cilium-system
+
+# ==============================================================================
+# Topology Configuration
+# ==============================================================================
+topology:
+  # Maximum depth for network traces
+  max_trace_depth: 10
+
+  # Include infrastructure components (Istio, Cilium, etc.)
+  include_infrastructure: true
+
+  # Detect service meshes
+  detect_service_mesh: true
+
+# ==============================================================================
+# Policy Configuration
+# ==============================================================================
+policy:
+  # Watch for policy changes in real-time
+  enable_watcher: true
+
+  # Supported policy types
+  supported_types:
+    - cilium
+    - kyverno
+    - network-policy
+
+# ==============================================================================
+# Logging Configuration
+# ==============================================================================
+logging:
+  # Log level: DEBUG, INFO, WARN, ERROR
+  level: INFO
+
+  # Log format: json, text
+  format: text
+
+  # Enable file logging
+  file_logging: false
+
+  # Log file path
+  file_path: ~/.stargazer/logs/stargazer.log
+
+  # Max log file size (MB)
+  max_size_mb: 100
+
+  # Max log file age (days)
+  max_age_days: 7
+
+  # Max number of old log files to keep
+  max_backups: 3
+
+# ==============================================================================
+# UI Configuration
+# ==============================================================================
+ui:
+  # Theme: dark, light, auto
+  theme: auto
+
+  # Default view: dashboard, topology, issues, resources
+  default_view: dashboard
+
+  # Refresh interval for live data (seconds)
+  refresh_interval: 5
+
+  # Enable notifications
+  enable_notifications: true
+
+  # Widget layout (customize dashboard widgets)
+  widgets:
+    - health
+    - issues
+    - resources
+    - topology
+
+# ==============================================================================
+# Security Configuration
+# ==============================================================================
+security:
+  # Read-only mode (prevent any write operations)
+  read_only: true
+
+  # Allowed namespaces (empty = all allowed)
+  allowed_namespaces: []
+
+  # Enable audit logging
+  audit_logging: false
+
+  # Audit log path
+  audit_log_path: ~/.stargazer/logs/audit.log
+
+# ==============================================================================
+# Cluster Identification
+# ==============================================================================
+cluster:
+  # Custom cluster name (auto-detected if not specified)
+  name: my-production-cluster
+
+  # Cluster environment: production, staging, development
+  environment: production
+
+  # Custom labels for cluster
+  labels:
+    team: platform
+    region: us-west-2

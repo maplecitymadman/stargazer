@@ -61,13 +61,21 @@ export default function Navigation({
       ]
     },
     { 
+      id: 'compliance', 
+      label: 'Compliance', 
+      icon: 'scan' as const,
+      subsections: [
+        { id: 'score', label: 'Compliance Score' },
+        { id: 'recommendations', label: 'Recommendations' },
+      ]
+    },
+    { 
       id: 'troubleshooting', 
       label: 'Troubleshooting', 
       icon: 'critical' as const,
       subsections: [
         { id: 'blocked', label: 'Blocked Connections' },
         { id: 'services', label: 'Services with Issues' },
-        { id: 'recommendations', label: 'Recommendations' },
       ]
     },
     { 
@@ -139,23 +147,19 @@ export default function Navigation({
                     onClick={() => {
                       if (hasSubsections) {
                         toggleSection(section.id);
-                        if (!isExpanded) {
-                          // If expanding, navigate to first subsection
-                          onSectionChange(section.id, section.subsections![0].id);
-                        } else {
-                          // If already expanded, just navigate to section
-                          onSectionChange(section.id);
-                        }
+                        // Navigate to section overview (no subsection)
+                        onSectionChange(section.id);
                       } else {
                         onSectionChange(section.id);
                         setIsOpen(false);
                       }
                     }}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-md text-sm transition-all ${
+                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-md text-sm transition-all cursor-pointer active:scale-[0.98] ${
                       isActive && !currentSubsection
                         ? 'bg-[#3b82f6] text-white'
                         : 'text-[#a1a1aa] hover:text-[#e4e4e7] hover:bg-[#111118]'
                     }`}
+                    aria-label={`Navigate to ${section.label}`}
                   >
                     <div className="flex items-center gap-3">
                       <Icon
@@ -184,11 +188,12 @@ export default function Navigation({
                               onSectionChange(section.id, subsection.id);
                               setIsOpen(false);
                             }}
-                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs transition-all ${
+                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs transition-all cursor-pointer active:scale-[0.98] ${
                               isSubActive
                                 ? 'bg-[#3b82f6]/20 text-[#3b82f6] border border-[#3b82f6]/30'
                                 : 'text-[#71717a] hover:text-[#e4e4e7] hover:bg-[#111118]'
                             }`}
+                            aria-label={`Navigate to ${subsection.label}`}
                           >
                             <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
                             {subsection.label}

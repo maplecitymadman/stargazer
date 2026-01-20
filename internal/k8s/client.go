@@ -412,6 +412,63 @@ func (c *Client) GetContext() string {
 	return c.context
 }
 
+// GetClusterName returns the cluster name from the current context
+func (c *Client) GetClusterName() string {
+	// For in-cluster config, try environment variable or return default
+	if c.kubeconfigPath == "" || c.kubeconfigPath == "in-cluster" {
+		if clusterNameEnv := os.Getenv("CLUSTER_NAME"); clusterNameEnv != "" {
+			return clusterNameEnv
+		}
+		// Try to extract from API server host if available
+		if c.restConfig != nil && c.restConfig.Host != "" {
+			// Could parse host, but for now return a default
+			return "in-cluster"
+		}
+		return "unknown"
+	}
+
+	// Load kubeconfig to get cluster name
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	loadingRules.ExplicitPath = c.kubeconfigPath
+	configOverrides := &clientcmd.ConfigOverrides{}
+	if c.context != "" {
+		configOverrides.CurrentContext = c.context
+	}
+
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		loadingRules,
+		configOverrides,
+	)
+
+	rawConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return "unknown"
+	}
+
+	// Get current context
+	currentContext := rawConfig.CurrentContext
+	if c.context != "" {
+		currentContext = c.context
+	}
+
+	// Find the context and get its cluster
+	ctx, exists := rawConfig.Contexts[currentContext]
+	if !exists {
+		return "unknown"
+	}
+
+	// Use the cluster name from the kubeconfig context
+	// This is typically set to a meaningful name by the user or cloud provider
+	clusterName := ctx.Cluster
+	
+	// If cluster name is empty or looks generic, try context name as fallback
+	if clusterName == "" || clusterName == "unknown" {
+		clusterName = currentContext
+	}
+
+	return clusterName
+}
+
 // GetKubeconfigPath returns the path to the kubeconfig file
 func (c *Client) GetKubeconfigPath() string {
 	return c.kubeconfigPath
