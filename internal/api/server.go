@@ -160,6 +160,10 @@ func (s *Server) setupRoutes() {
 		api.GET("/topology/trace", s.handleTracePath)
 		api.GET("/networkpolicy/:policy_name", s.handleGetNetworkPolicyYaml)
 
+		// Recommendations
+		api.GET("/recommendations", s.handleGetRecommendations)
+		api.GET("/recommendations/score", s.handleGetComplianceScore)
+
 		// Policy building and management
 		api.POST("/policies/cilium/build", s.handleBuildCiliumPolicy)
 		api.POST("/policies/cilium/apply", s.handleApplyCiliumPolicy)

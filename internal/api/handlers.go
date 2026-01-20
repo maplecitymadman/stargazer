@@ -1282,6 +1282,86 @@ func (s *Server) handleApplyKyvernoPolicy(c *gin.Context) {
 	})
 }
 
+// Get recommendations based on best practices
+func (s *Server) handleGetRecommendations(c *gin.Context) {
+	namespace := c.Query("namespace")
+	ns := namespace
+	if namespace == "all" || namespace == "" {
+		ns = ""
+	}
+
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+	
+	// Get topology first
+	topology, err := client.GetTopology(ctx, ns)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get topology: %v", err),
+		})
+		return
+	}
+
+	// Get recommendations
+	recommendations, err := client.GetRecommendations(ctx, topology)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get recommendations: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"recommendations": recommendations,
+		"count":          len(recommendations),
+		"namespace":      namespace,
+	})
+}
+
+// Get compliance score
+func (s *Server) handleGetComplianceScore(c *gin.Context) {
+	namespace := c.Query("namespace")
+	ns := namespace
+	if namespace == "all" || namespace == "" {
+		ns = ""
+	}
+
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+	
+	// Get topology first
+	topology, err := client.GetTopology(ctx, ns)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get topology: %v", err),
+		})
+		return
+	}
+
+	// Get compliance score
+	score, details := client.GetComplianceScore(ctx, topology)
+
+	c.JSON(http.StatusOK, gin.H{
+		"score":     score,
+		"details":   details,
+		"namespace": namespace,
+	})
+}
+
 // Export Kyverno Policy (just returns the YAML)
 func (s *Server) handleExportKyvernoPolicy(c *gin.Context) {
 	var req struct {

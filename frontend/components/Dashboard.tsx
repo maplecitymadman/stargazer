@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { Icon } from './SpaceshipIcons';
+import RecommendationsPanel from './RecommendationsPanel';
 
 interface DashboardProps {
   namespace?: string;
@@ -574,6 +575,24 @@ export default function Dashboard({ namespace, onNavigateToTopology, onNavigateT
             </div>
           </button>
         </div>
+      </div>
+
+      {/* Recommendations Panel */}
+      <div className="card rounded-lg p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-[#e4e4e7] flex items-center gap-2">
+            <Icon name="scan" className="text-[#3b82f6]" size="sm" />
+            Networking Recommendations
+          </h3>
+          <button
+            onClick={loadDashboardData}
+            className="px-3 py-1.5 text-sm bg-[#1a1a24] hover:bg-[#252530] text-[#71717a] rounded-md transition-all flex items-center gap-2"
+          >
+            <Icon name="refresh" size="sm" />
+            Refresh
+          </button>
+        </div>
+        <RecommendationsPanel namespace={namespace} />
       </div>
 
       {/* Infrastructure Status - Collapsed by default */}

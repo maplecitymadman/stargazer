@@ -305,6 +305,20 @@ export const apiClient = {
     return response.data;
   },
 
+  async getRecommendations(namespace?: string): Promise<any> {
+    const response = await api.get('/api/recommendations', {
+      params: namespace ? { namespace } : {},
+    });
+    return response.data;
+  },
+
+  async getComplianceScore(namespace?: string): Promise<any> {
+    const response = await api.get('/api/recommendations/score', {
+      params: namespace ? { namespace } : {},
+    });
+    return response.data;
+  },
+
   async getProvidersConfig(): Promise<any> {
     const response = await api.get('/api/config/providers');
     return response.data;
