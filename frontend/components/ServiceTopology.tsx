@@ -931,32 +931,85 @@ const nodeTypes: NodeTypes = {
   gateway: GatewayNode,
 };
 
+// Helper function to get service key (namespace/name format)
+function getServiceKey(service: ServiceInfo): string {
+  return `${service.namespace}/${service.name}`;
+}
+
 // Topology Graph Component with React Flow
 function TopologyGraph({ topology }: { topology: TopologyData | null }) {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  
+  // Group services by namespace for hierarchical layout
+  const servicesByNamespace = useMemo(() => {
+    if (!topology) return new Map<string, ServiceInfo[]>();
+    const grouped = new Map<string, ServiceInfo[]>();
+    Object.values(topology.services).forEach(service => {
+      if (!grouped.has(service.namespace)) {
+        grouped.set(service.namespace, []);
+      }
+      grouped.get(service.namespace)!.push(service);
+    });
+    return grouped;
+  }, [topology]);
   
   const initialNodes = useMemo(() => {
     if (!topology) return [];
     
     const services = Object.values(topology.services);
     const nodes: Node[] = [];
-    const centerX = 500;
-    const centerY = 400;
+    const nodeWidth = 180;
+    const nodeHeight = 100;
+    const horizontalSpacing = 220;
+    const verticalSpacing = 150;
+    const startY = 100;
     
-    // Create service nodes with circular layout
+    // Ingress gateway at top center
+    const centerX = 600;
+    let currentY = startY;
+    
+    if (topology.ingress && (topology.ingress.gateways?.length > 0 || topology.ingress.kubernetes_ingress?.length > 0)) {
+      const ingressConnections = topology.ingress.connections?.length || 0;
+      nodes.push({
+        id: 'ingress-gateway',
+        type: 'gateway',
+        position: { x: centerX - 90, y: currentY },
+        data: {
+          type: 'ingress',
+          name: 'Ingress Gateway',
+          connections: ingressConnections,
+        },
+        style: {
+          width: nodeWidth,
+        },
+      });
+      currentY += verticalSpacing;
+    }
+    
+    // Simple grid layout - calculate optimal columns
+    const totalServices = services.length;
+    const maxCols = Math.min(Math.ceil(Math.sqrt(totalServices * 1.8)), 10); // Optimal columns, max 10
+    
+    // Layout all services in a clean grid
     services.forEach((service, idx) => {
-      const connInfo = topology.connectivity[service.name];
+      const serviceKey = getServiceKey(service);
+      const connInfo = topology.connectivity[serviceKey];
       const hasBlocked = connInfo?.blocked_from && connInfo.blocked_from.length > 0;
       const hasIssues = connInfo && (connInfo.blocked_from?.length > 0 || connInfo.connections?.some((c: ServiceConnection) => !c.allowed));
       
-      // Circular layout
-      const angle = (idx / services.length) * 2 * Math.PI - Math.PI / 2; // Start from top
-      const radius = Math.max(250, Math.sqrt(services.length) * 40);
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
+      // Grid position
+      const row = Math.floor(idx / maxCols);
+      const col = idx % maxCols;
+      
+      // Center the grid horizontally
+      const gridWidth = Math.min(maxCols, totalServices - (row * maxCols)) * horizontalSpacing;
+      const gridStartX = centerX - (gridWidth / 2) + (horizontalSpacing / 2);
+      
+      const x = gridStartX + (col * horizontalSpacing);
+      const y = currentY + (row * verticalSpacing);
       
       nodes.push({
-        id: service.name,
+        id: serviceKey,
         type: 'service',
         position: { x, y },
         data: {
@@ -966,49 +1019,41 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
           hasIssues,
         },
         style: {
-          width: 160,
+          width: nodeWidth,
         },
       });
     });
     
-    // Add ingress gateway at top center
-    if (topology.ingress && (topology.ingress.gateways?.length > 0 || topology.ingress.kubernetes_ingress?.length > 0)) {
-      const ingressConnections = topology.ingress.connections?.length || 0;
-      nodes.push({
-        id: 'ingress-gateway',
-        type: 'gateway',
-        position: { x: centerX, y: 50 },
-        data: {
-          type: 'ingress',
-          name: 'Ingress Gateway',
-          connections: ingressConnections,
-        },
-        style: {
-          width: 160,
-        },
-      });
-    }
+    // Position egress gateway after all services
+    const totalRows = Math.ceil(totalServices / maxCols);
+    currentY += (totalRows * verticalSpacing) + 50;
     
-    // Add egress gateway at bottom center
+    // Egress gateway at bottom center
     if (topology.egress && topology.egress.gateways?.length > 0) {
+      currentY += 50;
       const egressConnections = topology.egress.connections?.length || 0;
       nodes.push({
         id: 'egress-gateway',
         type: 'gateway',
-        position: { x: centerX, y: 750 },
+        position: { x: centerX - 90, y: currentY },
         data: {
           type: 'egress',
           name: 'Egress Gateway',
           connections: egressConnections,
         },
         style: {
-          width: 160,
+          width: nodeWidth,
         },
       });
     }
     
     return nodes;
-  }, [topology]);
+  }, [topology, servicesByNamespace]);
+  
+  // Get all node IDs for edge creation
+  const nodeIds = useMemo(() => {
+    return new Set(initialNodes.map(n => n.id));
+  }, [initialNodes]);
   
   const initialEdges = useMemo(() => {
     if (!topology) return [];
@@ -1016,16 +1061,31 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
     const services = Object.values(topology.services);
     const edges: Edge[] = [];
     
-    // Create edges (connections)
+    // Create edges (connections) - using proper service keys
     services.forEach((sourceService) => {
-      const sourceConn = topology.connectivity[sourceService.name];
+      const sourceKey = getServiceKey(sourceService);
+      const sourceConn = topology.connectivity[sourceKey];
       if (!sourceConn) return;
       
       sourceConn.connections.forEach((conn: ServiceConnection) => {
+        // Target might be in namespace/name format or just name
+        let targetKey = conn.target;
+        if (!targetKey.includes('/')) {
+          // Try to find the service by name (might be in same namespace)
+          const targetService = services.find(s => s.name === targetKey);
+          if (targetService) {
+            targetKey = getServiceKey(targetService);
+          }
+        }
+        
+        // Only create edge if target node exists
+        if (!nodeIds.has(targetKey) && !nodeIds.has(conn.target)) return;
+        const finalTargetKey = nodeIds.has(targetKey) ? targetKey : conn.target;
+        
         edges.push({
-          id: `${sourceService.name}-${conn.target}`,
-          source: sourceService.name,
-          target: conn.target,
+          id: `${sourceKey}-${finalTargetKey}`,
+          source: sourceKey,
+          target: finalTargetKey,
           type: 'smoothstep',
           animated: conn.allowed && conn.via_service_mesh,
           style: {
@@ -1056,12 +1116,21 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
     // Add ingress connections
     if (topology.ingress?.connections) {
       topology.ingress.connections.forEach((conn: any, idx: number) => {
-        const targetService = services.find(s => s.name === conn.to);
-        if (targetService) {
+        // Find target service - conn.to might be namespace/name or just name
+        let targetKey = conn.to;
+        if (!targetKey.includes('/')) {
+          const targetService = services.find(s => s.name === conn.to);
+          if (targetService) {
+            targetKey = getServiceKey(targetService);
+          }
+        }
+        
+        if (nodeIds.has(targetKey) || nodeIds.has(conn.to)) {
+          const finalTargetKey = nodeIds.has(targetKey) ? targetKey : conn.to;
           edges.push({
             id: `ingress-${idx}`,
             source: 'ingress-gateway',
-            target: targetService.name,
+            target: finalTargetKey,
             type: 'smoothstep',
             style: {
               stroke: conn.allowed ? '#3b82f6' : '#ef4444',
@@ -1081,11 +1150,20 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
     // Add egress connections
     if (topology.egress?.connections) {
       topology.egress.connections.forEach((conn: any, idx: number) => {
-        const sourceService = services.find(s => s.name === conn.from);
-        if (sourceService) {
+        // Find source service - conn.from might be namespace/name or just name
+        let sourceKey = conn.from;
+        if (!sourceKey.includes('/')) {
+          const sourceService = services.find(s => s.name === conn.from);
+          if (sourceService) {
+            sourceKey = getServiceKey(sourceService);
+          }
+        }
+        
+        if (nodeIds.has(sourceKey) || nodeIds.has(conn.from)) {
+          const finalSourceKey = nodeIds.has(sourceKey) ? sourceKey : conn.from;
           edges.push({
             id: `egress-${idx}`,
-            source: sourceService.name,
+            source: finalSourceKey,
             target: 'egress-gateway',
             type: 'smoothstep',
             style: {
@@ -1104,7 +1182,7 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
     }
     
     return edges;
-  }, [topology]);
+  }, [topology, nodeIds]);
   
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -1179,18 +1257,50 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
             {selectedNode} Details
           </div>
           <div className="text-xs text-[#71717a] space-y-1">
-            {topology.services[selectedNode] && (
-              <>
-                <div>Namespace: {topology.services[selectedNode].namespace}</div>
-                <div>Type: {topology.services[selectedNode].type}</div>
-                <div>Cluster IP: {topology.services[selectedNode].cluster_ip}</div>
-                {topology.connectivity[selectedNode] && (
-                  <div>
-                    Connections: {topology.connectivity[selectedNode].can_reach?.length || 0} allowed, {topology.connectivity[selectedNode].blocked_from?.length || 0} blocked
-                  </div>
-                )}
-              </>
-            )}
+            {(() => {
+              // Find service by key (namespace/name format)
+              const service = Object.values(topology.services).find(s => getServiceKey(s) === selectedNode);
+              if (!service) return null;
+              
+              const connInfo = topology.connectivity[selectedNode];
+              
+              return (
+                <>
+                  <div>Namespace: {service.namespace}</div>
+                  <div>Type: {service.type}</div>
+                  <div>Cluster IP: {service.cluster_ip}</div>
+                  <div>Pods: {service.healthy_pods}/{service.pod_count}</div>
+                  {service.has_service_mesh && (
+                    <div>Service Mesh: {service.service_mesh_type || 'unknown'}</div>
+                  )}
+                  {connInfo && (
+                    <div className="mt-2">
+                      <div className="font-medium text-[#e4e4e7]">Connections:</div>
+                      <div className="mt-1">
+                        <span className="text-[#10b981]">{connInfo.can_reach?.length || 0} allowed</span>
+                        {' • '}
+                        <span className="text-[#ef4444]">{connInfo.blocked_from?.length || 0} blocked</span>
+                      </div>
+                      {connInfo.connections && connInfo.connections.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {connInfo.connections.map((conn: ServiceConnection, idx: number) => (
+                            <div key={idx} className={`flex items-center gap-1 ${conn.allowed ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                              <Icon name={conn.allowed ? "check" : "critical"} size="sm" />
+                              <span>{conn.target} ({conn.allowed ? 'Allowed' : 'Blocked'})</span>
+                              {conn.blocked_by_policy && conn.blocking_policies && conn.blocking_policies.length > 0 && (
+                                <span className="text-xs text-[#f59e0b] ml-1">
+                                  (Blocked by: {conn.blocking_policies.join(', ')})
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

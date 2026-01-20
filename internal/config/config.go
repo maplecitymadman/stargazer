@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -248,7 +249,8 @@ func (c *Config) Validate() error {
 }
 
 // nowISO returns current time in ISO 8601 format
+// Fix Issue #7: Use actual current time instead of hardcoded date
 func nowISO() string {
-	return fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d",
-		2026, 1, 13, 12, 0, 0) // Placeholder - in real implementation use time.Now()
+	now := time.Now()
+	return now.Format("2006-01-02 15:04:05")
 }

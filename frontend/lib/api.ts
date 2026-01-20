@@ -348,6 +348,58 @@ export const apiClient = {
     const response = await api.post('/api/config/kubeconfig', { path, context });
     return response.data;
   },
+
+  // Policy Building and Testing
+  async buildCiliumPolicy(spec: any): Promise<any> {
+    const response = await api.post('/api/policies/cilium/build', spec);
+    return response.data;
+  },
+
+  async applyCiliumPolicy(yaml: string, namespace?: string): Promise<any> {
+    const response = await api.post('/api/policies/cilium/apply', { yaml, namespace });
+    return response.data;
+  },
+
+  async exportCiliumPolicy(yaml: string): Promise<Blob> {
+    const response = await api.post('/api/policies/cilium/export', { yaml }, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  async deleteCiliumPolicy(name: string, namespace?: string): Promise<any> {
+    const response = await api.delete(`/api/policies/cilium/${name}`, {
+      params: namespace ? { namespace } : {},
+    });
+    return response.data;
+  },
+
+  async buildKyvernoPolicy(spec: any): Promise<any> {
+    const response = await api.post('/api/policies/kyverno/build', spec);
+    return response.data;
+  },
+
+  async applyKyvernoPolicy(yaml: string, namespace?: string): Promise<any> {
+    const response = await api.post('/api/policies/kyverno/apply', { yaml, namespace });
+    return response.data;
+  },
+
+  async exportKyvernoPolicy(yaml: string, type?: string): Promise<Blob> {
+    const response = await api.post('/api/policies/kyverno/export', { yaml, type }, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  async deleteKyvernoPolicy(name: string, namespace?: string, isClusterPolicy?: boolean): Promise<any> {
+    const response = await api.delete(`/api/policies/kyverno/${name}`, {
+      params: {
+        ...(namespace ? { namespace } : {}),
+        ...(isClusterPolicy ? { cluster_policy: 'true' } : {}),
+      },
+    });
+    return response.data;
+  },
 };
 
 export interface KubernetesContext {

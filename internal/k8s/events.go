@@ -89,6 +89,7 @@ func (c *Client) GetEvents(ctx context.Context, namespace string, includeNormal 
 
 // GetPodEvents retrieves events for a specific pod
 func (c *Client) GetPodEvents(ctx context.Context, namespace, podName string) ([]Event, error) {
+	// Fix Issue #10: Resolve namespace BEFORE creating cache key to prevent race condition
 	if namespace == "" {
 		namespace = c.namespace
 	}

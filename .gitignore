@@ -8,6 +8,8 @@
 *.out
 go.work
 go.work.sum
+coverage.out
+coverage.html
 
 # Build artifacts
 bin/
@@ -18,6 +20,8 @@ dist/
 *.pkg
 *.deb
 *.rpm
+*.tar.gz
+*.zip
 
 # Node (frontend)
 frontend/node_modules/
@@ -29,6 +33,8 @@ frontend/.cache/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
 
 # IDE
 .vscode/
@@ -36,17 +42,32 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+.cursor/
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
 *.tmp
+.AppleDouble
+.LSOverride
+Icon
+._*
+Desktop.ini
+$RECYCLE.BIN/
 
 # Kubernetes (local config - don't commit)
 *.kubeconfig
 kubeconfig
 .config/
 .secrets/
+.kube/config
+
+# Application data (local development)
+.stargazer/
+*.db
+*.sqlite
 
 # Logs
 *.log
@@ -54,3 +75,29 @@ logs/
 
 # Wails
 .wails/
+
+# Environment files (never commit these!)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Temporary files
+tmp/
+temp/
+*.bak
+*.backup
+
+# macOS
+.Spotlight-V100
+.Trashes
+
+# Test coverage and profiling
+*.prof
+*.pprof
+*.test
+*.out
+
+# Documentation build artifacts
+docs/_build/
+site/

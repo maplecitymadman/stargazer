@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
-import RecommendationsPanel from './RecommendationsPanel';
 import { Icon } from './SpaceshipIcons';
 
 interface TroubleshootingPageProps {
@@ -36,7 +35,6 @@ export default function TroubleshootingPage({ subsection, namespace }: Troublesh
   const tabs = [
     { id: 'blocked', label: 'Blocked Connections', icon: 'critical' as const },
     { id: 'services', label: 'Services with Issues', icon: 'degraded' as const },
-    { id: 'recommendations', label: 'Recommendations', icon: 'scan' as const },
   ];
 
   if (loading) {
@@ -56,11 +54,12 @@ export default function TroubleshootingPage({ subsection, namespace }: Troublesh
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium transition-all border-b-2 whitespace-nowrap cursor-pointer active:scale-[0.98] ${
               activeTab === tab.id
                 ? 'text-[#3b82f6] border-[#3b82f6]'
                 : 'text-[#71717a] border-transparent hover:text-[#e4e4e7]'
             }`}
+            aria-label={`Switch to ${tab.label} tab`}
           >
             <div className="flex items-center gap-2">
               <Icon name={tab.icon} size="sm" />
@@ -74,7 +73,6 @@ export default function TroubleshootingPage({ subsection, namespace }: Troublesh
       <div>
         {activeTab === 'blocked' && <BlockedConnections topology={topology} namespace={namespace} />}
         {activeTab === 'services' && <ServicesWithIssues topology={topology} namespace={namespace} />}
-        {activeTab === 'recommendations' && <RecommendationsPanel namespace={namespace} />}
       </div>
     </div>
   );
@@ -138,7 +136,12 @@ function BlockedConnections({ topology, namespace }: { topology: any; namespace?
       <div className="card rounded-lg p-8 text-center">
         <Icon name="healthy" className="text-[#10b981] text-4xl mb-4" />
         <h3 className="text-lg font-semibold text-[#e4e4e7] mb-2">No Blocked Connections</h3>
-        <p className="text-sm text-[#71717a]">All connections are allowed</p>
+        <p className="text-sm text-[#71717a] mb-4">All connections are currently allowed</p>
+        <div className="text-xs text-[#71717a] space-y-1">
+          <p>• All services can communicate freely</p>
+          <p>• No network policies are blocking traffic</p>
+          <p>• Check the Topology view to see all connections</p>
+        </div>
       </div>
     );
   }

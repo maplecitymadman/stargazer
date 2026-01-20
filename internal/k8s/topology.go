@@ -3,9 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -14,6 +12,25 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+// ServiceKey creates a consistent service key from namespace and name
+// Format: "namespace/name" or "name" if namespace is empty
+func ServiceKey(namespace, name string) string {
+	if namespace == "" {
+		return name
+	}
+	return fmt.Sprintf("%s/%s", namespace, name)
+}
+
+// ParseServiceKey parses a service key into namespace and name
+// Returns namespace, name, and whether the key was in namespace/name format
+func ParseServiceKey(key string) (namespace, name string, hasNamespace bool) {
+	parts := strings.Split(key, "/")
+	if len(parts) == 2 {
+		return parts[0], parts[1], true
+	}
+	return "", key, false
+}
 
 // TopologyData represents the complete service topology
 type TopologyData struct {
@@ -72,10 +89,11 @@ type ServiceConnection struct {
 
 // NetworkPolicyInfo represents a Kubernetes NetworkPolicy
 type NetworkPolicyInfo struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	Type      string `json:"type"` // "kubernetes" or "cilium"
-	YAML      string `json:"yaml,omitempty"`
+	Name      string                    `json:"name"`
+	Namespace string                    `json:"namespace"`
+	Type      string                    `json:"type"` // "kubernetes" or "cilium"
+	YAML      string                    `json:"yaml,omitempty"`
+	Policy    *networkingv1.NetworkPolicy `json:"-"` // Internal: actual policy object for evaluation
 }
 
 // CiliumNetworkPolicyInfo represents a Cilium NetworkPolicy
@@ -265,17 +283,6 @@ type PolicySelector struct {
 
 // GetTopology retrieves complete service topology information
 func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyData, error) {
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"namespace":        namespace,
-			"dynamicClientNil": c.dynamicClient == nil,
-			"clientsetNil":     c.clientset == nil,
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"topology.go:137","message":"GetTopology entry","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		os.WriteFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", []byte(logLine+"\n"), 0644)
-	}()
-	// #endregion
 	// Determine namespace
 	ns := namespace
 	if namespace == "all" || namespace == "" {
@@ -289,19 +296,6 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 		fmt.Printf("Warning: Failed to detect infrastructure: %v\n", err)
 		infra = InfrastructureInfo{}
 	}
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"infraDetected": infra.CNI != "",
-			"istioEnabled":  infra.IstioEnabled,
-			"ciliumEnabled": infra.CiliumEnabled,
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"topology.go:150","message":"Infrastructure detected","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 
 	// Get services
 	services, err := c.getTopologyServices(ctx, ns, infra)
@@ -347,27 +341,6 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 
 	// Get ingress info (with policies available)
 	ingress, err := c.getIngressInfo(ctx, ns, services, infra, networkPolicies, ciliumPolicies, istioPolicies)
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"ingressErr": err != nil,
-			"ingressErrMsg": func() string {
-				if err != nil {
-					return err.Error()
-				} else {
-					return ""
-				}
-			}(),
-			"ingressGateways":    len(ingress.Gateways),
-			"ingressRoutes":      len(ingress.Routes),
-			"ingressConnections": len(ingress.Connections),
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"topology.go:195","message":"Ingress info retrieved","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	if err != nil {
 		// Log but continue
 		fmt.Printf("Warning: Failed to get ingress info: %v\n", err)
@@ -376,27 +349,6 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 
 	// Get egress info (with policies available)
 	egress, err := c.getEgressInfo(ctx, ns, services, infra, networkPolicies, ciliumPolicies, istioPolicies)
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"egressErr": err != nil,
-			"egressErrMsg": func() string {
-				if err != nil {
-					return err.Error()
-				} else {
-					return ""
-				}
-			}(),
-			"egressGateways":    len(egress.Gateways),
-			"egressConnections": len(egress.Connections),
-			"hasEgressGateway":  egress.HasEgressGateway,
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"topology.go:207","message":"Egress info retrieved","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	if err != nil {
 		// Log but continue
 		fmt.Printf("Warning: Failed to get egress info: %v\n", err)
@@ -408,6 +360,12 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 
 	// Build connectivity map (includes ingress/egress)
 	connectivity := c.buildConnectivityMap(ctx, services, ingress, egress, networkPolicies, ciliumPolicies, istioPolicies, infra)
+
+	// Update infrastructure counts with actual policy counts
+	infra.NetworkPolicies = len(networkPolicies)
+	infra.CiliumPolicies = len(ciliumPolicies)
+	infra.IstioPolicies = len(istioPolicies)
+	infra.KyvernoPolicies = len(kyvernoPolicies)
 
 	// Calculate summary
 	summary := c.calculateTopologySummary(services, connectivity, infra)
@@ -614,10 +572,13 @@ func (c *Client) getNetworkPolicies(ctx context.Context, namespace string) ([]Ne
 
 	policies := make([]NetworkPolicyInfo, 0, len(policyList.Items))
 	for _, policy := range policyList.Items {
+		// Create a copy of the policy for evaluation
+		policyCopy := policy
 		policies = append(policies, NetworkPolicyInfo{
 			Name:      policy.Name,
 			Namespace: policy.Namespace,
 			Type:      "kubernetes",
+			Policy:    &policyCopy,
 		})
 	}
 
@@ -751,7 +712,7 @@ func (c *Client) getIstioPolicies(ctx context.Context, namespace string) ([]Isti
 	}
 
 	// AuthorizationPolicy (uses security.istio.io, which may have different version)
-	// Try v1 first (most common), then fall back to detected version
+	// Try v1 first (most common), then fall back to v1beta1 (older Istio versions)
 	apGVR := schema.GroupVersionResource{
 		Group:    "security.istio.io",
 		Version:  "v1",
@@ -775,7 +736,14 @@ func (c *Client) getIstioPolicies(ctx context.Context, namespace string) ([]Isti
 		}
 	}
 
-	if err == nil {
+	// Log error but don't fail completely - AuthorizationPolicies are optional
+	if err != nil {
+		// Check if it's a "not found" error (CRD not installed) vs actual error
+		if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "the server could not find") {
+			// Only log non-CRD errors
+			fmt.Printf("Warning: Failed to list AuthorizationPolicies: %v\n", err)
+		}
+	} else {
 		for _, item := range apList.Items {
 			policies = append(policies, IstioPolicyInfo{
 				Name:      item.GetName(),
@@ -817,21 +785,69 @@ func (c *Client) buildConnectivityMap(ctx context.Context, services map[string]S
 				continue
 			}
 
-			// Check if connection is allowed (simplified logic)
+			// Check if connection is allowed (improved policy evaluation)
 			allowed := true
 			reason := "No policy blocking"
 			blockedByPolicy := false
 			var blockingPolicies []string
 
-			// Check network policies (simplified - would need actual policy evaluation)
-			for _, policy := range networkPolicies {
-				if policy.Namespace == service.Namespace {
-					// Simplified check - in reality would need to evaluate policy rules
-					blockedByPolicy = true
-					blockingPolicies = append(blockingPolicies, policy.Name)
-					allowed = false
-					reason = fmt.Sprintf("Blocked by NetworkPolicy: %s", policy.Name)
+			// Evaluate network policies for the source service namespace
+			hasPolicies := false
+			for _, policyInfo := range networkPolicies {
+				if policyInfo.Namespace == service.Namespace {
+					hasPolicies = true
+					if policyInfo.Policy != nil {
+						// Check if this is a default-deny policy (empty ingress/egress rules)
+						policy := policyInfo.Policy
+						hasIngressType := false
+						hasEgressType := false
+						for _, pt := range policy.Spec.PolicyTypes {
+							if pt == networkingv1.PolicyTypeIngress {
+								hasIngressType = true
+							}
+							if pt == networkingv1.PolicyTypeEgress {
+								hasEgressType = true
+							}
+						}
+						
+						// Default deny: policy type specified but no rules
+						if hasIngressType && len(policy.Spec.Ingress) == 0 {
+							blockedByPolicy = true
+							blockingPolicies = append(blockingPolicies, policy.Name)
+							allowed = false
+							reason = fmt.Sprintf("Blocked by default-deny NetworkPolicy: %s (no ingress rules)", policy.Name)
+						}
+						if hasEgressType && len(policy.Spec.Egress) == 0 {
+							blockedByPolicy = true
+							blockingPolicies = append(blockingPolicies, policy.Name)
+							allowed = false
+							reason = fmt.Sprintf("Blocked by default-deny NetworkPolicy: %s (no egress rules)", policy.Name)
+						}
+						
+						// If policy has rules, check if they might allow this connection
+						// This is a simplified check - full evaluation would require pod selector matching
+						if hasIngressType && len(policy.Spec.Ingress) > 0 {
+							// Policy has allow rules, so connection might be allowed
+							// In a full implementation, we'd check pod selectors and namespace selectors
+						}
+					} else {
+						// Policy object not available, use conservative approach
+						// If policy name suggests default-deny, assume blocking
+						if strings.Contains(strings.ToLower(policyInfo.Name), "deny") ||
+							strings.Contains(strings.ToLower(policyInfo.Name), "block") {
+							blockedByPolicy = true
+							blockingPolicies = append(blockingPolicies, policyInfo.Name)
+							allowed = false
+							reason = fmt.Sprintf("Potentially blocked by NetworkPolicy: %s", policyInfo.Name)
+						}
+					}
 				}
+			}
+			
+			// If no policies exist, allow (default Kubernetes behavior)
+			if !hasPolicies {
+				allowed = true
+				reason = "No NetworkPolicies in namespace"
 			}
 
 			connection := ServiceConnection{
@@ -980,15 +996,6 @@ func (c *Client) calculateTopologySummary(services map[string]ServiceInfo, conne
 
 // detectIstioAPIVersion detects which Istio API version to use
 func (c *Client) detectIstioAPIVersion(ctx context.Context) (string, error) {
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{"dynamicClientNil": c.dynamicClient == nil}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"topology.go:690","message":"detectIstioAPIVersion entry","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	if c.dynamicClient == nil {
 		return "", fmt.Errorf("dynamic client not available")
 	}
@@ -1026,27 +1033,9 @@ func (c *Client) detectIstioAPIVersion(ctx context.Context) (string, error) {
 
 	_, err = c.dynamicClient.Resource(v1GVR).Namespace("").List(ctx, metav1.ListOptions{Limit: 1})
 	if err == nil {
-		// #region agent log
-		func() {
-			logData := map[string]interface{}{"version": "v1", "detected": true}
-			logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"topology.go:717","message":"Istio API version detected","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-			f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			f.WriteString(logLine + "\n")
-			f.Close()
-		}()
-		// #endregion
 		return "v1", nil
 	}
 
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{"detected": false, "error": "Istio API not detected"}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"topology.go:725","message":"Istio API version detection failed","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	return "", fmt.Errorf("Istio API not detected")
 }
 

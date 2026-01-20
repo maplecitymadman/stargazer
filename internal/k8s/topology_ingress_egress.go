@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -124,35 +122,6 @@ func (c *Client) getIngressInfo(ctx context.Context, namespace string, services 
 
 	// 3. Build Ingress → Service connections
 	ingress.Connections = c.buildIngressConnections(ingress, services, networkPolicies, ciliumPolicies, istioPolicies)
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"totalConnections": len(ingress.Connections),
-			"allowedConnections": func() int {
-				count := 0
-				for _, c := range ingress.Connections {
-					if c.Allowed {
-						count++
-					}
-				}
-				return count
-			}(),
-			"blockedConnections": func() int {
-				count := 0
-				for _, c := range ingress.Connections {
-					if !c.Allowed {
-						count++
-					}
-				}
-				return count
-			}(),
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"topology_ingress_egress.go:120","message":"Ingress connections built","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	return ingress, nil
 }
 
@@ -376,22 +345,6 @@ func (c *Client) evaluateIngressPolicy(ctx context.Context,
 	networkPolicies []NetworkPolicyInfo,
 	ciliumPolicies []CiliumNetworkPolicyInfo,
 	istioPolicies []IstioPolicyInfo) (allowed bool, reason string, blockingPolicies []string) {
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"from":                 from,
-			"toService":            toService.Name,
-			"toNamespace":          toService.Namespace,
-			"networkPoliciesCount": len(networkPolicies),
-			"ciliumPoliciesCount":  len(ciliumPolicies),
-			"istioPoliciesCount":   len(istioPolicies),
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"topology_ingress_egress.go:373","message":"evaluateIngressPolicy entry","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	allowed = true
 	reason = "No policy blocking ingress"
 	blockingPolicies = []string{}
@@ -426,19 +379,6 @@ func (c *Client) evaluateIngressPolicy(ctx context.Context,
 			blockingPolicies = append(blockingPolicies, policy.Name)
 		}
 	}
-	// #region agent log
-	func() {
-		logData := map[string]interface{}{
-			"allowed":               allowed,
-			"reason":                reason,
-			"blockingPoliciesCount": len(blockingPolicies),
-		}
-		logLine := fmt.Sprintf(`{"sessionId":"debug-session","runId":"run1","hypothesisId":"D","location":"topology_ingress_egress.go:424","message":"evaluateIngressPolicy result","data":%s,"timestamp":%d}`, toJSON(logData), time.Now().UnixMilli())
-		f, _ := os.OpenFile("/Users/isaac.sanchezhawkins/talos-deploy/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(logLine + "\n")
-		f.Close()
-	}()
-	// #endregion
 	return allowed, reason, blockingPolicies
 }
 

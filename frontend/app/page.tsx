@@ -12,9 +12,13 @@ import PathTracer from '@/components/PathTracer';
 import TrafficAnalysisPage from '@/components/TrafficAnalysisPage';
 import NetworkPoliciesPage from '@/components/NetworkPoliciesPage';
 import TroubleshootingPage from '@/components/TroubleshootingPage';
+import CompliancePage from '@/components/CompliancePage';
 import StargazerLogo from '@/components/StargazerLogo';
 import Settings from '@/components/Settings';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Icon } from '@/components/SpaceshipIcons';
+import OverviewPage from '@/components/OverviewPages';
+import toast from 'react-hot-toast';
 
 export default function Home() {
   const [health, setHealth] = useState<ClusterHealth | null>(null);
@@ -24,6 +28,7 @@ export default function Home() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [currentSection, setCurrentSection] = useState<string>('dashboard');
   const [currentSubsection, setCurrentSubsection] = useState<string | undefined>(undefined);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     // Load theme from localStorage
@@ -102,6 +107,7 @@ export default function Home() {
       // Only update if we got valid data
       if (healthData) {
         setHealth(healthData);
+        setLastUpdated(new Date());
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -176,7 +182,7 @@ export default function Home() {
   };
 
 
-  const setupWebSocket = () => {
+  const setupWebSocket = (attempt: number = 1) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
@@ -185,6 +191,10 @@ export default function Home() {
       
       websocket.onopen = () => {
         setWs(websocket);
+        // Reset attempt counter on successful connection
+        if (attempt > 1) {
+          console.log('[WebSocket] Reconnected successfully');
+        }
       };
       
       websocket.onmessage = (event) => {
@@ -207,11 +217,28 @@ export default function Home() {
       
       websocket.onclose = () => {
         setWs(null);
-        setTimeout(setupWebSocket, 5000);
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+        const maxDelay = 30000;
+        const baseDelay = 1000;
+        const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
+        const maxAttempts = 10;
+        
+        if (attempt < maxAttempts) {
+          console.log(`[WebSocket] Connection closed, reconnecting in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+          setTimeout(() => setupWebSocket(attempt + 1), delay);
+        } else {
+          console.error('[WebSocket] Max reconnection attempts reached, giving up');
+        }
       };
     } catch (error) {
       // Silently handle WebSocket setup errors
       setWs(null);
+      const maxDelay = 30000;
+      const baseDelay = 1000;
+      const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
+      if (attempt < 10) {
+        setTimeout(() => setupWebSocket(attempt + 1), delay);
+      }
     }
   };
 
@@ -219,6 +246,9 @@ export default function Home() {
     setLoading(true);
     try {
       await loadData();
+      toast.success('Data refreshed successfully');
+    } catch (error) {
+      toast.error('Failed to refresh data');
     } finally {
       setLoading(false);
     }
@@ -232,13 +262,54 @@ export default function Home() {
   const getBreadcrumbs = () => {
     const base = [{ label: 'DASHBOARD', onClick: () => handleSectionChange('dashboard') }];
     
+    // Map subsection IDs to labels
+    const subsectionLabels: Record<string, Record<string, string>> = {
+      'traffic-analysis': {
+        'topology': 'Service Topology',
+        'path-trace': 'Path Tracer',
+        'ingress': 'Ingress Traffic',
+        'egress': 'Egress Traffic',
+      },
+      'network-policies': {
+        'view': 'View Policies',
+        'build': 'Build Policy',
+        'test': 'Test Policy',
+      },
+      'compliance': {
+        'score': 'Compliance Score',
+        'recommendations': 'Recommendations',
+      },
+      'troubleshooting': {
+        'blocked': 'Blocked Connections',
+        'services': 'Services with Issues',
+      },
+    };
+    
     switch (currentSection) {
       case 'traffic-analysis':
-        return [...base, { label: 'TRAFFIC ANALYSIS', onClick: () => handleSectionChange('traffic-analysis') }];
+        const taBase = [...base, { label: 'TRAFFIC ANALYSIS', onClick: () => handleSectionChange('traffic-analysis') }];
+        if (currentSubsection && subsectionLabels['traffic-analysis'][currentSubsection]) {
+          return [...taBase, { label: subsectionLabels['traffic-analysis'][currentSubsection].toUpperCase() }];
+        }
+        return taBase;
       case 'network-policies':
-        return [...base, { label: 'NETWORK POLICIES', onClick: () => handleSectionChange('network-policies') }];
+        const npBase = [...base, { label: 'NETWORK POLICIES', onClick: () => handleSectionChange('network-policies') }];
+        if (currentSubsection && subsectionLabels['network-policies'][currentSubsection]) {
+          return [...npBase, { label: subsectionLabels['network-policies'][currentSubsection].toUpperCase() }];
+        }
+        return npBase;
+      case 'compliance':
+        const compBase = [...base, { label: 'COMPLIANCE', onClick: () => handleSectionChange('compliance') }];
+        if (currentSubsection && subsectionLabels['compliance'][currentSubsection]) {
+          return [...compBase, { label: subsectionLabels['compliance'][currentSubsection].toUpperCase() }];
+        }
+        return compBase;
       case 'troubleshooting':
-        return [...base, { label: 'TROUBLESHOOTING', onClick: () => handleSectionChange('troubleshooting') }];
+        const tsBase = [...base, { label: 'TROUBLESHOOTING', onClick: () => handleSectionChange('troubleshooting') }];
+        if (currentSubsection && subsectionLabels['troubleshooting'][currentSubsection]) {
+          return [...tsBase, { label: subsectionLabels['troubleshooting'][currentSubsection].toUpperCase() }];
+        }
+        return tsBase;
       case 'topology':
         return [...base, { label: 'SERVICE TOPOLOGY' }];
       case 'events':
@@ -284,6 +355,7 @@ export default function Home() {
 
       {/* Main Content */}
       <div className="flex-1 lg:ml-64">
+        <ErrorBoundary>
         {/* Top Bar */}
         <header className="glass border-b border-[rgba(255,255,255,0.08)] sticky top-0 z-20">
           <div className="px-6 py-4">
@@ -294,6 +366,7 @@ export default function Home() {
                   {currentSection === 'dashboard' && 'Dashboard'}
                   {currentSection === 'traffic-analysis' && 'Traffic Analysis'}
                   {currentSection === 'network-policies' && 'Network Policies'}
+                  {currentSection === 'compliance' && 'Compliance'}
                   {currentSection === 'troubleshooting' && 'Troubleshooting'}
                   {currentSection === 'topology' && 'Service Topology'}
                   {currentSection === 'events' && 'Events'}
@@ -304,7 +377,7 @@ export default function Home() {
                 <button
                   onClick={handleRefresh}
                   disabled={loading}
-                  className="px-4 py-2 bg-[#3b82f6] text-white rounded-md hover:bg-[#2563eb] disabled:opacity-50 transition-all flex items-center gap-2 text-sm font-medium"
+                  className="px-4 py-2 bg-[#3b82f6] text-white rounded-md hover:bg-[#2563eb] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all flex items-center gap-2 text-sm font-medium"
                 >
                   <Icon name={loading ? "loading" : "refresh"} className="text-white" size="sm" />
                   Refresh
@@ -316,12 +389,17 @@ export default function Home() {
                     onChange={(e) => setAutoRefresh(e.target.checked)}
                     className="w-4 h-4 rounded border-[rgba(255,255,255,0.2)] bg-[#1a1a24] text-[#3b82f6] focus:ring-[#3b82f6]"
                   />
-                  <span className="text-sm text-[#a1a1aa]">Auto</span>
+                  <span className="text-sm text-[#a1a1aa]">Auto-refresh</span>
                 </label>
                 {ws && (
                   <span className="text-xs text-[#10b981] flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#10b981]/10 border border-[#10b981]/20">
                     <span className="w-1.5 h-1.5 bg-[#10b981] rounded-full animate-pulse"></span>
                     Live
+                    {lastUpdated && (
+                      <span className="text-[#71717a] ml-1">
+                        ({Math.floor((Date.now() - lastUpdated.getTime()) / 1000)}s ago)
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
@@ -384,13 +462,13 @@ export default function Home() {
                           window.dispatchEvent(event);
                         }, 100);
                       }}
-                      className="px-4 py-2 bg-[#3b82f6] text-white rounded-md hover:bg-[#2563eb] transition-colors cursor-pointer"
+                      className="px-4 py-2 bg-[#3b82f6] text-white rounded-md hover:bg-[#2563eb] transition-all cursor-pointer active:scale-95"
                     >
                       Configure
                     </button>
                     <button
                       onClick={handleRefresh}
-                      className="px-4 py-2 border border-[rgba(255,255,255,0.08)] text-[#a1a1aa] rounded-md hover:bg-[#111118] transition-colors cursor-pointer"
+                      className="px-4 py-2 border border-[rgba(255,255,255,0.08)] text-[#a1a1aa] rounded-md hover:bg-[#111118] transition-all cursor-pointer active:scale-95"
                     >
                       Retry
                     </button>
@@ -401,15 +479,51 @@ export default function Home() {
           )}
 
           {currentSection === 'traffic-analysis' && (
-            <TrafficAnalysisPage subsection={currentSubsection} namespace={namespace} />
+            currentSubsection ? (
+              <TrafficAnalysisPage subsection={currentSubsection} namespace={namespace} />
+            ) : (
+              <OverviewPage 
+                section="traffic-analysis" 
+                namespace={namespace}
+                onNavigate={(subsection) => handleSectionChange('traffic-analysis', subsection)}
+              />
+            )
           )}
 
           {currentSection === 'network-policies' && (
-            <NetworkPoliciesPage subsection={currentSubsection} namespace={namespace} />
+            currentSubsection ? (
+              <NetworkPoliciesPage subsection={currentSubsection} namespace={namespace} />
+            ) : (
+              <OverviewPage 
+                section="network-policies" 
+                namespace={namespace}
+                onNavigate={(subsection) => handleSectionChange('network-policies', subsection)}
+              />
+            )
+          )}
+
+          {currentSection === 'compliance' && (
+            currentSubsection ? (
+              <CompliancePage subsection={currentSubsection} namespace={namespace} />
+            ) : (
+              <OverviewPage 
+                section="compliance" 
+                namespace={namespace}
+                onNavigate={(subsection) => handleSectionChange('compliance', subsection)}
+              />
+            )
           )}
 
           {currentSection === 'troubleshooting' && (
-            <TroubleshootingPage subsection={currentSubsection} namespace={namespace} />
+            currentSubsection ? (
+              <TroubleshootingPage subsection={currentSubsection} namespace={namespace} />
+            ) : (
+              <OverviewPage 
+                section="troubleshooting" 
+                namespace={namespace}
+                onNavigate={(subsection) => handleSectionChange('troubleshooting', subsection)}
+              />
+            )
           )}
 
           {currentSection === 'topology' && (
@@ -429,6 +543,7 @@ export default function Home() {
             <Settings />
           )}
         </main>
+        </ErrorBoundary>
       </div>
 
     </div>

@@ -1,0 +1,115 @@
+version: '3.8'
+
+# Stargazer Docker Compose Example
+# This is an example configuration for running Stargazer in a container
+# Copy to docker-compose.yml and customize as needed
+
+services:
+  stargazer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stargazer:latest
+    container_name: stargazer
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Ports
+    ports:
+      - "8000:8000"  # API server
+
+    # Environment variables
+    environment:
+      # Kubernetes configuration
+      - KUBECONFIG=/config/kubeconfig
+      - KUBECTL_CONTEXT=my-cluster
+
+      # Application settings
+      - LOG_LEVEL=INFO
+      - CACHE_TTL=30
+      - RATE_LIMIT_RPS=100
+
+      # Storage
+      - STORAGE_PATH=/data
+
+      # Optional: LLM provider configuration
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+    # Volumes
+    volumes:
+      # Mount kubeconfig for cluster access
+      - ~/.kube/config:/config/kubeconfig:ro
+
+      # Persistent storage for scan results and configuration
+      - stargazer-data:/data
+
+      # Optional: Mount custom configuration
+      # - ./config.yaml:/data/config.yaml:ro
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Security
+    security_opt:
+      - no-new-privileges:true
+
+    # Run as non-root user
+    user: "1000:1000"
+
+    # Read-only root filesystem (recommended for security)
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+
+  # Optional: Run multiple instances for different clusters
+  stargazer-staging:
+    extends: stargazer
+    container_name: stargazer-staging
+    ports:
+      - "8001:8000"
+    environment:
+      - KUBECONFIG=/config/kubeconfig-staging
+      - KUBECTL_CONTEXT=staging-cluster
+      - CLUSTER_NAME=staging
+      - STORAGE_PATH=/data
+    volumes:
+      - ~/.kube/config-staging:/config/kubeconfig-staging:ro
+      - stargazer-staging-data:/data
+
+# Volumes
+volumes:
+  stargazer-data:
+    driver: local
+  stargazer-staging-data:
+    driver: local
+
+# Networks (optional - for isolation)
+networks:
+  default:
+    name: stargazer-network
+    driver: bridge
