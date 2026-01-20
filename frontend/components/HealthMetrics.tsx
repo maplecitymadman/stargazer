@@ -1,6 +1,7 @@
 'use client';
 
-import { ClusterHealth } from '@/lib/api';
+import { useState, useEffect } from 'react';
+import { ClusterHealth, apiClient } from '@/lib/api';
 import { Icon } from './SpaceshipIcons';
 
 interface HealthMetricsProps {
@@ -10,12 +11,47 @@ interface HealthMetricsProps {
 }
 
 export default function HealthMetrics({ health, namespace, onEventsClick }: HealthMetricsProps) {
-  const podsPercent = health.pods.total > 0 
-    ? Math.round((health.pods.healthy / health.pods.total) * 100) 
+  const [topology, setTopology] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTopology();
+  }, [namespace]);
+
+  const loadTopology = async () => {
+    try {
+      const data = await apiClient.getServiceTopology(namespace).catch(() => null);
+      setTopology(data);
+    } catch (error) {
+      console.error('Error loading topology:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const infra = topology?.infrastructure || {};
+  const summary = topology?.summary || {};
+  
+  // Calculate policy coverage
+  const totalServices = summary.total_services || 0;
+  const servicesWithPolicies = Object.values(topology?.services || {}).filter((service: any) => {
+    // Check if service has any policy coverage
+    const hasK8sPolicy = (topology?.network_policies || []).some((np: any) => np.namespace === service.namespace);
+    const hasCiliumPolicy = (topology?.cilium_policies || []).some((cp: any) => 
+      cp.namespace === service.namespace || cp.namespace === ''
+    );
+    return hasK8sPolicy || hasCiliumPolicy;
+  }).length;
+  
+  const policyCoverage = totalServices > 0 
+    ? Math.round((servicesWithPolicies / totalServices) * 100)
     : 0;
-  const depsPercent = health.deployments.total > 0
-    ? Math.round((health.deployments.healthy / health.deployments.total) * 100)
-    : 0;
+
+  // Total policies count
+  const totalPolicies = (infra.network_policies || 0) + 
+                        (infra.cilium_policies || 0) + 
+                        (infra.istio_policies || 0) + 
+                        (infra.kyverno_policies || 0);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -41,62 +77,69 @@ export default function HealthMetrics({ health, namespace, onEventsClick }: Heal
         </div>
       </div>
 
-      {/* Pods */}
+      {/* Network Policies */}
       <div 
         className="card rounded-lg p-5"
       >
         <div className="text-xs text-[#71717a] mb-2 flex items-center gap-2">
-          <Icon name="pods" className="text-[#71717a]" size="sm" />
-          <span>Pods</span>
+          <Icon name="scan" className="text-[#71717a]" size="sm" />
+          <span>Network Policies</span>
         </div>
         <div className="text-2xl font-semibold mt-2 text-[#e4e4e7]">
-          {health.pods.healthy}/{health.pods.total}
+          {loading ? '...' : totalPolicies}
         </div>
-        <div className={`text-xs mt-2 font-medium ${
-          podsPercent === 100 
-            ? 'text-[#10b981]' 
-            : podsPercent >= 80 
-            ? 'text-[#f59e0b]' 
-            : 'text-[#ef4444]'
-        }`}>
-          {podsPercent}% healthy
+        <div className="text-xs mt-2 text-[#71717a]">
+          {loading ? 'Loading...' : (
+            <>
+              {infra.network_policies || 0} K8s • {infra.cilium_policies || 0} Cilium • {infra.istio_policies || 0} Istio
+            </>
+          )}
         </div>
-        <div className="mt-3 h-1 bg-[#1a1a24] rounded-full overflow-hidden">
-          <div 
-            className={`h-full transition-all duration-500 ${
-              podsPercent === 100 ? 'bg-[#10b981]' : podsPercent >= 80 ? 'bg-[#f59e0b]' : 'bg-[#ef4444]'
-            }`}
-            style={{ width: `${podsPercent}%` }}
-          ></div>
+        <div className="mt-3 flex gap-1 flex-wrap">
+          {!loading && infra.network_policies > 0 && (
+            <span className="px-2 py-0.5 rounded text-xs bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/20">
+              K8s
+            </span>
+          )}
+          {!loading && infra.cilium_policies > 0 && (
+            <span className="px-2 py-0.5 rounded text-xs bg-[#8b5cf6]/10 text-[#8b5cf6] border border-[#8b5cf6]/20">
+              Cilium
+            </span>
+          )}
+          {!loading && infra.istio_policies > 0 && (
+            <span className="px-2 py-0.5 rounded text-xs bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
+              Istio
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Deployments */}
+      {/* Services Monitored */}
       <div 
         className="card rounded-lg p-5"
       >
         <div className="text-xs text-[#71717a] mb-2 flex items-center gap-2">
-          <Icon name="deployments" className="text-[#71717a]" size="sm" />
-          <span>Deployments</span>
+          <Icon name="network" className="text-[#71717a]" size="sm" />
+          <span>Services</span>
         </div>
         <div className="text-2xl font-semibold mt-2 text-[#e4e4e7]">
-          {health.deployments.healthy}/{health.deployments.total}
+          {loading ? '...' : summary.total_services || 0}
         </div>
         <div className={`text-xs mt-2 font-medium ${
-          depsPercent === 100 
+          policyCoverage >= 80 
             ? 'text-[#10b981]' 
-            : depsPercent >= 80 
+            : policyCoverage >= 50 
             ? 'text-[#f59e0b]' 
             : 'text-[#ef4444]'
         }`}>
-          {depsPercent}% healthy
+          {loading ? 'Loading...' : `${policyCoverage}% policy coverage`}
         </div>
         <div className="mt-3 h-1 bg-[#1a1a24] rounded-full overflow-hidden">
           <div 
             className={`h-full transition-all duration-500 ${
-              depsPercent === 100 ? 'bg-[#10b981]' : depsPercent >= 80 ? 'bg-[#f59e0b]' : 'bg-[#ef4444]'
+              policyCoverage >= 80 ? 'bg-[#10b981]' : policyCoverage >= 50 ? 'bg-[#f59e0b]' : 'bg-[#ef4444]'
             }`}
-            style={{ width: `${depsPercent}%` }}
+            style={{ width: `${policyCoverage}%` }}
           ></div>
         </div>
       </div>
