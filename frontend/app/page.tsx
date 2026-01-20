@@ -9,6 +9,9 @@ import Breadcrumbs from '@/components/Breadcrumbs';
 import EventsDetail from '@/components/EventsDetail';
 import ServiceTopology from '@/components/ServiceTopology';
 import PathTracer from '@/components/PathTracer';
+import TrafficAnalysisPage from '@/components/TrafficAnalysisPage';
+import NetworkPoliciesPage from '@/components/NetworkPoliciesPage';
+import TroubleshootingPage from '@/components/TroubleshootingPage';
 import StargazerLogo from '@/components/StargazerLogo';
 import Settings from '@/components/Settings';
 import { Icon } from '@/components/SpaceshipIcons';
@@ -20,6 +23,7 @@ export default function Home() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [currentSection, setCurrentSection] = useState<string>('dashboard');
+  const [currentSubsection, setCurrentSubsection] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     // Load theme from localStorage
@@ -220,14 +224,21 @@ export default function Home() {
     }
   };
 
-  const handleSectionChange = (section: string) => {
+  const handleSectionChange = (section: string, subsection?: string) => {
     setCurrentSection(section);
+    setCurrentSubsection(subsection);
   };
 
   const getBreadcrumbs = () => {
-    const base = [{ label: 'DASHBOARD', onClick: () => setCurrentSection('dashboard') }];
+    const base = [{ label: 'DASHBOARD', onClick: () => handleSectionChange('dashboard') }];
     
     switch (currentSection) {
+      case 'traffic-analysis':
+        return [...base, { label: 'TRAFFIC ANALYSIS', onClick: () => handleSectionChange('traffic-analysis') }];
+      case 'network-policies':
+        return [...base, { label: 'NETWORK POLICIES', onClick: () => handleSectionChange('network-policies') }];
+      case 'troubleshooting':
+        return [...base, { label: 'TROUBLESHOOTING', onClick: () => handleSectionChange('troubleshooting') }];
       case 'topology':
         return [...base, { label: 'SERVICE TOPOLOGY' }];
       case 'events':
@@ -261,6 +272,7 @@ export default function Home() {
       {/* Sidebar Navigation */}
       <Navigation
         currentSection={currentSection}
+        currentSubsection={currentSubsection}
         onSectionChange={handleSectionChange}
         namespace={namespace}
         onNamespaceChange={(ns) => {
@@ -280,6 +292,9 @@ export default function Home() {
                 <Breadcrumbs items={getBreadcrumbs()} />
                 <h1 className="text-xl font-semibold text-[#e4e4e7] tracking-tight mt-1">
                   {currentSection === 'dashboard' && 'Dashboard'}
+                  {currentSection === 'traffic-analysis' && 'Traffic Analysis'}
+                  {currentSection === 'network-policies' && 'Network Policies'}
+                  {currentSection === 'troubleshooting' && 'Troubleshooting'}
                   {currentSection === 'topology' && 'Service Topology'}
                   {currentSection === 'events' && 'Events'}
                   {currentSection === 'settings' && 'Settings'}
@@ -346,11 +361,7 @@ export default function Home() {
                   </div>
                   <Dashboard 
                     namespace={namespace}
-                    onNavigateToTopology={() => setCurrentSection('topology')}
-                    onNavigateToService={(serviceName) => {
-                      setCurrentSection('topology');
-                      // Could set selected service in topology view
-                    }}
+                    onNavigate={(section, subsection) => handleSectionChange(section, subsection)}
                   />
                 </>
               )}
@@ -387,6 +398,18 @@ export default function Home() {
                 </div>
               )}
             </>
+          )}
+
+          {currentSection === 'traffic-analysis' && (
+            <TrafficAnalysisPage subsection={currentSubsection} namespace={namespace} />
+          )}
+
+          {currentSection === 'network-policies' && (
+            <NetworkPoliciesPage subsection={currentSubsection} namespace={namespace} />
+          )}
+
+          {currentSection === 'troubleshooting' && (
+            <TroubleshootingPage subsection={currentSubsection} namespace={namespace} />
           )}
 
           {currentSection === 'topology' && (
