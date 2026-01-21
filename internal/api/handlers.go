@@ -636,7 +636,8 @@ func (s *Server) handleGetConfig(c *gin.Context) {
 			"error": fmt.Sprintf("Failed to load config: %v", err),
 		})
 		return
-	c.JSON(http.StatusOK, cfg)}
+	}
+	c.JSON(http.StatusOK, cfg)
 }
 
 // Get providers config (v2 style)

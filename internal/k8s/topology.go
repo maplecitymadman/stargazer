@@ -89,10 +89,10 @@ type ServiceConnection struct {
 
 // NetworkPolicyInfo represents a Kubernetes NetworkPolicy
 type NetworkPolicyInfo struct {
-	Name      string                    `json:"name"`
-	Namespace string                    `json:"namespace"`
-	Type      string                    `json:"type"` // "kubernetes" or "cilium"
-	YAML      string                    `json:"yaml,omitempty"`
+	Name      string                      `json:"name"`
+	Namespace string                      `json:"namespace"`
+	Type      string                      `json:"type"` // "kubernetes" or "cilium"
+	YAML      string                      `json:"yaml,omitempty"`
 	Policy    *networkingv1.NetworkPolicy `json:"-"` // Internal: actual policy object for evaluation
 }
 
@@ -459,6 +459,13 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		return nil, err
 	}
 
+	// Optimization: Index pods by namespace to avoid O(N*M) complexity
+	podsByNamespace := make(map[string][]*corev1.Pod)
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		podsByNamespace[pod.Namespace] = append(podsByNamespace[pod.Namespace], pod)
+	}
+
 	// Build service info
 	for _, svc := range serviceList.Items {
 		// Find pods matching service selector
@@ -468,32 +475,35 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		var hasIstio bool
 		var hasCiliumProxy bool
 
-		for _, pod := range podList.Items {
-			if pod.Namespace == svc.Namespace && selector.Matches(labels.Set(pod.Labels)) {
-				matchingPods = append(matchingPods, pod.Name)
-				if pod.Status.Phase == corev1.PodRunning {
-					healthyPods++
-				}
+		// Optimized: Only iterate pods in the same namespace
+		if namespacePods, ok := podsByNamespace[svc.Namespace]; ok {
+			for _, pod := range namespacePods {
+				if selector.Matches(labels.Set(pod.Labels)) {
+					matchingPods = append(matchingPods, pod.Name)
+					if pod.Status.Phase == corev1.PodRunning {
+						healthyPods++
+					}
 
-				// Check for Istio sidecar
-				if infra.IstioEnabled {
-					for _, container := range pod.Spec.Containers {
-						if strings.Contains(container.Image, "istio/proxy") || strings.Contains(container.Image, "istio") {
+					// Check for Istio sidecar
+					if infra.IstioEnabled {
+						for _, container := range pod.Spec.Containers {
+							if strings.Contains(container.Image, "istio/proxy") || strings.Contains(container.Image, "istio") {
+								hasIstio = true
+								break
+							}
+						}
+						// Check for Istio annotations
+						if _, ok := pod.Annotations["sidecar.istio.io/status"]; ok {
 							hasIstio = true
-							break
 						}
 					}
-					// Check for Istio annotations
-					if _, ok := pod.Annotations["sidecar.istio.io/status"]; ok {
-						hasIstio = true
-					}
-				}
 
-				// Check for Cilium proxy (eBPF)
-				if infra.CiliumEnabled {
-					// Cilium uses eBPF, but we can check for Cilium annotations
-					if val, ok := pod.Annotations["io.cilium.k8s.policy.name"]; ok && val != "" {
-						hasCiliumProxy = true
+					// Check for Cilium proxy (eBPF)
+					if infra.CiliumEnabled {
+						// Cilium uses eBPF, but we can check for Cilium annotations
+						if val, ok := pod.Annotations["io.cilium.k8s.policy.name"]; ok && val != "" {
+							hasCiliumProxy = true
+						}
 					}
 				}
 			}
@@ -809,7 +819,7 @@ func (c *Client) buildConnectivityMap(ctx context.Context, services map[string]S
 								hasEgressType = true
 							}
 						}
-						
+
 						// Default deny: policy type specified but no rules
 						if hasIngressType && len(policy.Spec.Ingress) == 0 {
 							blockedByPolicy = true
@@ -823,7 +833,7 @@ func (c *Client) buildConnectivityMap(ctx context.Context, services map[string]S
 							allowed = false
 							reason = fmt.Sprintf("Blocked by default-deny NetworkPolicy: %s (no egress rules)", policy.Name)
 						}
-						
+
 						// If policy has rules, check if they might allow this connection
 						// This is a simplified check - full evaluation would require pod selector matching
 						if hasIngressType && len(policy.Spec.Ingress) > 0 {
@@ -843,7 +853,7 @@ func (c *Client) buildConnectivityMap(ctx context.Context, services map[string]S
 					}
 				}
 			}
-			
+
 			// If no policies exist, allow (default Kubernetes behavior)
 			if !hasPolicies {
 				allowed = true
