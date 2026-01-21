@@ -78,7 +78,7 @@ export default function Navigation({
       icon: 'critical',
       subsections: [
         { id: 'blocked', label: 'Blocked Connections' },
-        { id: 'services', label: 'Services with Issues' },
+        { id: 'services', label: 'Service Health & Drift' },
       ]
     },
     {

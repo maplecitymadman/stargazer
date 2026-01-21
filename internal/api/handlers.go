@@ -997,20 +997,6 @@ stargazer_connected %d
 	c.Data(http.StatusOK, "text/plain; version=0.0.4", []byte(metrics))
 }
 
-// Empty handlers for removed endpoints (frontend compatibility)
-func (s *Server) handleGetIssuesEmpty(c *gin.Context) {
-	namespace := c.Query("namespace")
-	if namespace == "" {
-		namespace = "all"
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"issues":    []interface{}{},
-		"count":     0,
-		"namespace": namespace,
-		"timestamp": time.Now().Format(time.RFC3339),
-	})
-}
-
 func (s *Server) handleGetPodsEmpty(c *gin.Context) {
 	namespace := c.Query("namespace")
 	if namespace == "" {

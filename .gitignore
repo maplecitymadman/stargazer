@@ -102,3 +102,4 @@ temp/
 # Documentation build artifacts
 docs/_build/
 site/
+stargazer

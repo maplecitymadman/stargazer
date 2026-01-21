@@ -3,7 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/maplecitymadman/stargazer/internal/api"
@@ -349,10 +353,32 @@ func runWeb(cmd *cobra.Command) {
 		RateLimitRPS: cfg.API.RateLimitRPS,
 	})
 
-	if err := server.Start(port); err != nil {
-		fmt.Printf("❌ Server failed: %v\n", err)
+	// Run server in a goroutine
+	go func() {
+		if err := server.Start(port); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("❌ Server failed: %v\n", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	fmt.Println("\n🛑 Shutting down server...")
+
+	// The context is used to inform the server it has 5 seconds to finish
+	// the request it is currently handling
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		fmt.Printf("❌ Server forced to shutdown: %v\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Println("✅ Server exited gracefully")
 }
 
 // runHealth checks cluster health
@@ -489,17 +515,21 @@ func runLogs(cmd *cobra.Command, podName string) {
 		os.Exit(1)
 	}
 
-	// Get logs
-	logsCtx, logsCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer logsCancel()
-
-	logs, err := client.GetPodLogs(logsCtx, namespace, podName, tail, follow)
+	// Get logs stream
+	// Note: We use context.Background() here because we want to stream until cancelled by user
+	logsStream, err := client.GetPodLogs(context.Background(), namespace, podName, tail, follow)
 	if err != nil {
 		fmt.Printf("❌ Failed to get logs: %v\n", err)
 		os.Exit(1)
 	}
+	defer logsStream.Close()
 
 	fmt.Println()
 	fmt.Println("--- Logs ---")
-	fmt.Print(logs)
+
+	// Stream logs to stdout
+	_, err = io.Copy(os.Stdout, logsStream)
+	if err != nil && err != io.EOF {
+		fmt.Printf("\n❌ Error streaming logs: %v\n", err)
+	}
 }

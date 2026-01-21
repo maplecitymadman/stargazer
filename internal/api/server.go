@@ -132,8 +132,6 @@ func (s *Server) setupRoutes() {
 	{
 		// Cluster endpoints (v2 style)
 		api.GET("/cluster/health", s.handleClusterHealth)
-		// Return empty issues array for compatibility (frontend expects this)
-		api.GET("/cluster/issues", s.handleGetIssuesEmpty)
 
 		// Context management
 		api.GET("/contexts", s.handleGetContexts)

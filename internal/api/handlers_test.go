@@ -208,34 +208,6 @@ func TestHandleGetNamespaces(t *testing.T) {
 	}
 }
 
-// TestHandleGetIssuesEmpty tests the empty issues endpoint
-func TestHandleGetIssuesEmpty(t *testing.T) {
-	server := &Server{
-		router: gin.New(),
-	}
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/cluster/issues", nil)
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-
-	server.handleGetIssuesEmpty(c)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-
-	var body map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("failed to parse response: %v", err)
-	}
-
-	issues, ok := body["issues"].([]interface{})
-	if !ok || len(issues) != 0 {
-		t.Errorf("expected empty issues array, got %v", body["issues"])
-	}
-}
-
 // TestHandleGetPodsEmpty tests the empty pods endpoint
 func TestHandleGetPodsEmpty(t *testing.T) {
 	server := &Server{
