@@ -460,7 +460,7 @@ func (c *Client) GetClusterName() string {
 	// Use the cluster name from the kubeconfig context
 	// This is typically set to a meaningful name by the user or cloud provider
 	clusterName := ctx.Cluster
-	
+
 	// If cluster name is empty or looks generic, try context name as fallback
 	if clusterName == "" || clusterName == "unknown" {
 		clusterName = currentContext
@@ -582,7 +582,11 @@ func (pw *PolicyWatcher) watchNetworkPolicies(ctx context.Context) {
 			return
 		case <-ctx.Done():
 			return
-		case event := <-watcher.ResultChan():
+		case event, ok := <-watcher.ResultChan():
+			if !ok {
+				// Channel closed
+				return
+			}
 			policy, ok := event.Object.(*networkingv1.NetworkPolicy)
 			if !ok {
 				continue
