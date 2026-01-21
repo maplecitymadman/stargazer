@@ -5,243 +5,37 @@ This guide covers all deployment options for Stargazer, including desktop app, C
 ## Table of Contents
 
 1. [Deployment Options Overview](#deployment-options-overview)
-2. [Desktop App Deployment](#desktop-app-deployment)
-3. [CLI Deployment](#cli-deployment)
-4. [Docker Deployment](#docker-deployment)
-5. [Kubernetes In-Cluster Deployment](#kubernetes-in-cluster-deployment)
-6. [Configuration Management](#configuration-management)
-7. [Environment Variables](#environment-variables)
-8. [Kubeconfig Setup](#kubeconfig-setup)
-9. [Multi-Cluster Setup](#multi-cluster-setup)
-10. [Troubleshooting](#troubleshooting)
-11. [Upgrading](#upgrading)
-12. [Uninstallation](#uninstallation)
+2. [CLI Deployment](#cli-deployment)
+3. [Docker Deployment](#docker-deployment)
+4. [Kubernetes In-Cluster Deployment](#kubernetes-in-cluster-deployment)
+5. [Configuration Management](#configuration-management)
+6. [Environment Variables](#environment-variables)
+7. [Kubeconfig Setup](#kubeconfig-setup)
+8. [Multi-Cluster Setup](#multi-cluster-setup)
+9. [Troubleshooting](#troubleshooting)
+10. [Upgrading](#upgrading)
+11. [Uninstallation](#uninstallation)
 
 ---
 
 ## Deployment Options Overview
 
-Stargazer can be deployed in three primary modes:
+Stargazer can be deployed in two primary modes:
 
-### 1. Desktop Application (Recommended for Local Use)
+### 1. CLI Tool
 - **Platform**: macOS, Windows, Linux
-- **Use Case**: Local troubleshooting, single-user workstation
-- **Pros**: Native GUI, no browser required, easy to use
-- **Cons**: Requires installation on each workstation
-
-### 2. CLI Tool
-- **Platform**: macOS, Windows, Linux
-- **Use Case**: Terminal users, automation, scripts
-- **Pros**: Lightweight, scriptable, quick commands
+- **Use Case**: Terminal users, automation, scripts, local troubleshooting
+- **Pros**: Lightweight, scriptable, quick commands, easy installation
 - **Cons**: No visual interface
 
-### 3. Containerized (Docker/Kubernetes)
+### 2. Containerized (Docker/Kubernetes)
 - **Platform**: Any platform with Docker/Kubernetes
 - **Use Case**: Multi-user teams, in-cluster monitoring
-- **Pros**: Centralized deployment, no local installation
+- **Pros**: Centralized deployment, no local installation, web UI available
 - **Cons**: Requires cluster deployment, network access
 
 ---
 
-## Desktop App Deployment
-
-The desktop app provides a native GUI experience using Wails (Go + React).
-
-### Prerequisites
-
-- Go 1.21 or higher
-- Node.js 16 or higher
-- Wails CLI: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
-- Platform-specific requirements:
-  - **macOS**: Xcode Command Line Tools
-  - **Windows**: WebView2 runtime (usually pre-installed on Windows 10+)
-  - **Linux**: `webkit2gtk` package
-
-### macOS Deployment
-
-#### Build from Source
-
-```bash
-# Clone repository
-git clone https://github.com/maplecitymadman/stargazer.git
-cd stargazer
-
-# Build desktop app
-make build-gui
-# or
-wails build
-
-# App location: build/bin/Stargazer.app
-```
-
-#### Install to Applications
-
-```bash
-# Copy to Applications folder
-cp -r build/bin/Stargazer.app /Applications/
-
-# Or create a DMG for distribution
-# (Requires create-dmg: brew install create-dmg)
-create-dmg \
-  --volname "Stargazer Installer" \
-  --window-pos 200 120 \
-  --window-size 600 400 \
-  --icon-size 100 \
-  --app-drop-link 425 120 \
-  Stargazer.dmg \
-  build/bin/Stargazer.app
-```
-
-#### Homebrew Installation
-
-```bash
-# Using Homebrew formula
-brew install --build-from-source stargazer.rb
-
-# Or from a tap (once published)
-brew tap your-org/stargazer
-brew install stargazer
-```
-
-### Windows Deployment
-
-#### Build from Source
-
-```bash
-# Clone repository
-git clone https://github.com/maplecitymadman/stargazer.git
-cd stargazer
-
-# Build desktop app
-wails build -platform windows/amd64
-
-# Executable location: build/bin/Stargazer.exe
-```
-
-#### Create Installer (Optional)
-
-Use tools like NSIS or Inno Setup to create a Windows installer:
-
-```nsis
-; Example NSIS script (stargazer-installer.nsi)
-!include "MUI2.nsh"
-
-Name "Stargazer"
-OutFile "Stargazer-Setup.exe"
-InstallDir "$PROGRAMFILES\Stargazer"
-
-!insertmacro MUI_PAGE_DIRECTORY
-!insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_LANGUAGE "English"
-
-Section "Install"
-  SetOutPath "$INSTDIR"
-  File "build\bin\Stargazer.exe"
-  CreateShortcut "$DESKTOP\Stargazer.lnk" "$INSTDIR\Stargazer.exe"
-SectionEnd
-```
-
-### Linux Deployment
-
-#### Build from Source
-
-```bash
-# Install dependencies (Ubuntu/Debian)
-sudo apt-get install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.0-dev
-
-# Or for Fedora/RHEL
-sudo dnf install gtk3-devel webkit2gtk3-devel
-
-# Clone and build
-git clone https://github.com/maplecitymadman/stargazer.git
-cd stargazer
-make build-gui
-
-# Binary location: build/bin/Stargazer
-```
-
-#### Create .deb Package (Debian/Ubuntu)
-
-```bash
-# Create package structure
-mkdir -p stargazer-deb/DEBIAN
-mkdir -p stargazer-deb/usr/local/bin
-mkdir -p stargazer-deb/usr/share/applications
-
-# Copy binary
-cp build/bin/Stargazer stargazer-deb/usr/local/bin/
-
-# Create control file
-cat > stargazer-deb/DEBIAN/control << EOF
-Package: stargazer
-Version: 0.1.0
-Section: utils
-Priority: optional
-Architecture: amd64
-Maintainer: Your Name <your@email.com>
-Description: Kubernetes troubleshooting tool
- Stargazer provides AI-powered Kubernetes diagnostics.
-EOF
-
-# Create .desktop file
-cat > stargazer-deb/usr/share/applications/stargazer.desktop << EOF
-[Desktop Entry]
-Name=Stargazer
-Comment=Kubernetes Troubleshooting Tool
-Exec=/usr/local/bin/Stargazer
-Icon=stargazer
-Type=Application
-Categories=Development;
-EOF
-
-# Build package
-dpkg-deb --build stargazer-deb
-```
-
-#### Create AppImage (Universal Linux)
-
-```bash
-# Install appimagetool
-wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-chmod +x appimagetool-x86_64.AppImage
-
-# Create AppDir structure
-mkdir -p Stargazer.AppDir/usr/bin
-cp build/bin/Stargazer Stargazer.AppDir/usr/bin/
-
-# Create AppRun script
-cat > Stargazer.AppDir/AppRun << 'EOF'
-#!/bin/bash
-SELF=$(readlink -f "$0")
-HERE=${SELF%/*}
-exec "${HERE}/usr/bin/Stargazer" "$@"
-EOF
-chmod +x Stargazer.AppDir/AppRun
-
-# Create .desktop file
-cat > Stargazer.AppDir/stargazer.desktop << EOF
-[Desktop Entry]
-Name=Stargazer
-Exec=Stargazer
-Icon=stargazer
-Type=Application
-Categories=Development;
-EOF
-
-# Build AppImage
-./appimagetool-x86_64.AppImage Stargazer.AppDir
-```
-
-### First Launch
-
-1. Launch Stargazer from Applications/Start Menu/Desktop
-2. App automatically detects kubeconfig from `~/.kube/config`
-3. Configure AI providers in Settings (optional)
-4. Start troubleshooting
-
----
-
-## CLI Deployment
 
 ### Build from Source
 

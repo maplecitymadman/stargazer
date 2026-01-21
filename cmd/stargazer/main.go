@@ -82,13 +82,13 @@ var logsCmd = &cobra.Command{
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage Stargazer configuration",
-	Long:  `Manage Stargazer configuration including LLM providers and API keys`,
+	Long:  `Manage Stargazer configuration`,
 }
 
 var configSetupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Run interactive setup wizard",
-	Long:  `Run the interactive setup wizard to configure LLM providers and API keys`,
+	Long:  `Run the interactive setup wizard to configure Stargazer`,
 	Run: func(cmd *cobra.Command, args []string) {
 		wizard := config.NewWizard()
 		cfg, err := wizard.Run()
@@ -131,25 +131,6 @@ var configShowCmd = &cobra.Command{
 		fmt.Printf("  Retain Days: %d\n", cfg.Storage.RetainDays)
 		fmt.Printf("  Max Results: %d\n\n", cfg.Storage.MaxScanResults)
 
-		// LLM Providers
-		fmt.Println("LLM Providers:")
-		fmt.Printf("  Default: %s\n", cfg.LLM.DefaultProvider)
-
-		enabledProviders := cfg.GetEnabledProviders()
-		if len(enabledProviders) == 0 {
-			fmt.Println("  No providers enabled")
-		} else {
-			fmt.Printf("  Enabled: %v\n", enabledProviders)
-			for name, provider := range cfg.LLM.Providers {
-				if provider.Enabled {
-					fmt.Printf("    - %s: %s", name, provider.Model)
-					if provider.APIKey != "" {
-						fmt.Printf(" (API key configured)")
-					}
-					fmt.Println()
-				}
-			}
-		}
 	},
 }
 
@@ -183,7 +164,7 @@ func init() {
 }
 
 func main() {
-	// Always run CLI mode - GUI is built separately with Wails
+	// Run CLI mode
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

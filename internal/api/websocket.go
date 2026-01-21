@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -60,7 +61,7 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
-			fmt.Printf("[WS] Client connected (total: %d)\n", len(h.clients))
+			slog.Info("WebSocket client connected", "total_clients", len(h.clients))
 
 		case client := <-h.unregister:
 			h.mu.Lock()
@@ -69,7 +70,7 @@ func (h *Hub) Run() {
 				close(client.send)
 			}
 			h.mu.Unlock()
-			fmt.Printf("[WS] Client disconnected (remaining: %d)\n", len(h.clients))
+			slog.Info("WebSocket client disconnected", "remaining_clients", len(h.clients))
 
 		case message := <-h.broadcast:
 			h.mu.RLock()
@@ -114,7 +115,7 @@ func (h *Hub) Shutdown() {
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("[WS] Upgrade error: %v\n", err)
+		slog.Error("WebSocket upgrade failed", "error", err)
 		return
 	}
 
@@ -158,7 +159,7 @@ func (c *Client) readPump() {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				fmt.Printf("[WS] Read error: %v\n", err)
+				slog.Warn("WebSocket read error", "error", err)
 			}
 			break
 		}
@@ -166,12 +167,12 @@ func (c *Client) readPump() {
 		// Handle incoming messages (e.g., client requests)
 		var msg Message
 		if err := json.Unmarshal(message, &msg); err != nil {
-			fmt.Printf("[WS] Invalid message format: %v\n", err)
+			slog.Warn("Invalid WebSocket message format", "error", err)
 			continue
 		}
 
 		// Echo back for now (can be extended for client-server communication)
-		fmt.Printf("[WS] Received: %s\n", msg.Type)
+		slog.Debug("WebSocket message received", "type", msg.Type)
 	}
 }
 
@@ -201,7 +202,7 @@ func (c *Client) writePump() {
 			// Encode message as JSON
 			encoder := json.NewEncoder(w)
 			if err := encoder.Encode(message); err != nil {
-				fmt.Printf("[WS] Encode error: %v\n", err)
+				slog.Error("WebSocket encode error", "error", err)
 				return
 			}
 

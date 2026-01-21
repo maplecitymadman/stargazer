@@ -12,6 +12,7 @@ coverage.out
 coverage.html
 
 # Build artifacts
+.agent/
 bin/
 build/
 dist/

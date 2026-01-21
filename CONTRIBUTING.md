@@ -51,9 +51,7 @@ Ensure you have the following installed:
 - **Go 1.21 or higher** - [Install Go](https://golang.org/doc/install)
 - **Node.js 16 or higher** - [Install Node.js](https://nodejs.org/)
 - **npm or yarn** - Comes with Node.js
-- **Wails CLI v2** - Required for desktop app development
-  ```bash
-  go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
   ```
 - **kubectl** - For testing with real Kubernetes clusters
 - **golangci-lint** (optional but recommended) - For code linting
@@ -649,7 +647,7 @@ Need help or have questions?
 ## Additional Resources
 
 - [Go Documentation](https://golang.org/doc/)
-- [Wails Documentation](https://wails.io/docs/introduction)
+
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Kubernetes client-go](https://github.com/kubernetes/client-go)
 - [Conventional Commits](https://www.conventionalcommits.org/)

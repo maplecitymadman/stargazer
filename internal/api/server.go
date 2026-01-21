@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -17,8 +18,8 @@ import (
 func toJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
-		// Log marshaling error and return error placeholder
-		fmt.Printf("[ERROR] JSON marshaling failed: %v\n", err)
+		// Log marshaling error
+		slog.Error("JSON marshaling failed", "error", err)
 		return "{\"error\": \"marshaling failed\"}"
 	}
 	return string(b)
@@ -26,12 +27,12 @@ func toJSON(v interface{}) string {
 
 // Server wraps the HTTP server with Kubernetes client and WebSocket support
 type Server struct {
-	router       *gin.Engine
-	k8sClient    *k8s.Client
-	discovery    *k8s.Discovery
-	wsHub        *Hub // WebSocket hub for broadcasting
+	router        *gin.Engine
+	k8sClient     *k8s.Client
+	discovery     *k8s.Discovery
+	wsHub         *Hub               // WebSocket hub for broadcasting
 	policyWatcher *k8s.PolicyWatcher // Policy watcher for real-time updates
-	mu           sync.RWMutex // Protects k8sClient and discovery
+	mu            sync.RWMutex       // Protects k8sClient and discovery
 
 	// Fix Issue #3: Add cancel function for policy watcher context
 	policyWatcherCancel context.CancelFunc
@@ -45,10 +46,10 @@ type Server struct {
 
 // Config holds server configuration
 type Config struct {
-	Port          int
-	K8sClient     *k8s.Client
-	EnableCORS    bool
-	RateLimitRPS  int // Requests per second
+	Port         int
+	K8sClient    *k8s.Client
+	EnableCORS   bool
+	RateLimitRPS int // Requests per second
 }
 
 // NewServer creates a new API server
@@ -66,7 +67,7 @@ func NewServer(cfg Config) *Server {
 		wsHub:     NewHub(),
 		startTime: time.Now(),
 	}
-	
+
 	// Start WebSocket hub
 	go server.wsHub.Run()
 
@@ -122,7 +123,7 @@ func (s *Server) GetK8sClient() *k8s.Client {
 func (s *Server) setupRoutes() {
 	// Health check (no rate limiting)
 	s.router.GET("/api/health", s.handleHealth)
-	
+
 	// Metrics endpoint for Prometheus (no rate limiting)
 	s.router.GET("/api/metrics", s.handleMetrics)
 
@@ -145,11 +146,11 @@ func (s *Server) setupRoutes() {
 
 		// Events
 		api.GET("/events", s.handleGetEventsQuery)
-		
+
 		// Return empty arrays for removed endpoints (frontend compatibility)
 		api.GET("/pods", s.handleGetPodsEmpty)
 		api.GET("/deployments", s.handleGetDeploymentsEmpty)
-		
+
 		// Legacy path-based routes (for compatibility)
 		api.GET("/namespaces/:namespace/services", s.handleGetServices)
 		api.GET("/services", s.handleGetAllServices) // Get all services for PathTracer
@@ -189,12 +190,10 @@ func (s *Server) setupRoutes() {
 
 		// Config endpoints (v2 style)
 		api.GET("/config", s.handleGetConfig)
-		api.GET("/config/providers", s.handleGetProvidersConfig)
+
 		api.GET("/config/kubeconfig/status", s.handleGetKubeconfigStatus)
 		api.POST("/config/kubeconfig", s.handleSetKubeconfig)
-		api.POST("/config/providers/:provider/model", s.handleSetProviderModel)
-		api.POST("/config/providers/:provider/enable", s.handleEnableProvider)
-		api.POST("/config/providers/:provider/api-key", s.handleSetProviderApiKey)
+
 		api.POST("/config", s.handleSetConfig)
 		api.POST("/config/setup-wizard", s.handleSetupWizard)
 	}
@@ -207,7 +206,7 @@ func (s *Server) setupRoutes() {
 	// Serve static frontend files from /app/frontend/out
 	s.router.Static("/_next/static", "/app/frontend/out/_next/static")
 	s.router.StaticFile("/favicon.ico", "/app/frontend/out/favicon.ico")
-	
+
 	// Serve index.html for root and all other routes (SPA routing)
 	s.router.NoRoute(func(c *gin.Context) {
 		// If it's an API route, return 404
@@ -218,7 +217,7 @@ func (s *Server) setupRoutes() {
 		// Otherwise serve the frontend
 		c.File("/app/frontend/out/index.html")
 	})
-	
+
 	// Serve root as index.html
 	s.router.GET("/", func(c *gin.Context) {
 		c.File("/app/frontend/out/index.html")
@@ -228,9 +227,10 @@ func (s *Server) setupRoutes() {
 // Start starts the HTTP server
 func (s *Server) Start(port int) error {
 	addr := fmt.Sprintf(":%d", port)
-	fmt.Printf("🚀 Starting Stargazer API server on http://localhost%s\n", addr)
-	fmt.Printf("📡 WebSocket endpoint: ws://localhost%s/ws\n", addr)
-	fmt.Printf("🔍 API docs: http://localhost%s/api/health\n", addr)
+	slog.Info("Starting Stargazer API server",
+		"address", addr,
+		"websocket", fmt.Sprintf("ws://localhost%s/ws", addr),
+		"health_endpoint", fmt.Sprintf("http://localhost%s/api/health", addr))
 
 	return s.router.Run(addr)
 }
@@ -291,7 +291,7 @@ func (s *Server) startPolicyWatcher() {
 	s.mu.Unlock()
 
 	if err := s.policyWatcher.Start(ctx); err != nil {
-		fmt.Printf("[PolicyWatcher] Failed to start: %v\n", err)
+		slog.Error("Policy watcher failed to start", "error", err)
 		return
 	}
 
@@ -319,11 +319,13 @@ func (s *Server) loggerMiddleware() gin.HandlerFunc {
 			s.errorCount.Add(1)
 		}
 
-		// Skip logging for health checks to reduce noise
-		if path == "/api/health" {
-			return
+		// Log API requests (skip health checks to reduce noise)
+		if path != "/api/health" {
+			slog.Info("API request",
+				"method", method,
+				"path", path,
+				"status", statusCode,
+				"latency", latency)
 		}
-
-		fmt.Printf("[API] %s %s %d %v\n", method, path, statusCode, latency)
 	}
 }

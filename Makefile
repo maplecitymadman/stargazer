@@ -80,34 +80,12 @@ deps: ## Download dependencies
 	go mod tidy
 	@echo "✅ Dependencies updated"
 
-build-gui: ## Build desktop app with Wails (requires wails CLI)
-	@echo "🖥️  Building desktop app..."
-	@export PATH=$$PATH:$$(go env GOPATH)/bin; \
-	if ! command -v wails > /dev/null 2>&1; then \
-		echo "❌ Wails not installed. Run: go install github.com/wailsapp/wails/v2/cmd/wails@latest"; \
-		echo "💡 Also ensure $$(go env GOPATH)/bin is in your PATH"; \
-		exit 1; \
-	fi
-	@echo "📦 Building frontend..."
-	@cd frontend && npm install --silent && npm run build
-	@echo "🔨 Building desktop app..."
-	@export PATH=$$PATH:$$(go env GOPATH)/bin; wails build
-	@echo "✅ Desktop app built in build/bin/"
 
-build-all: build build-gui ## Build both CLI and desktop app
 
-dev-gui: ## Run desktop app in dev mode
-	@export PATH=$$PATH:$$(go env GOPATH)/bin; \
-	if ! command -v wails > /dev/null 2>&1; then \
-		echo "❌ Wails not installed. Run: go install github.com/wailsapp/wails/v2/cmd/wails@latest"; \
-		echo "💡 Also ensure $$(go env GOPATH)/bin is in your PATH"; \
-		exit 1; \
-	fi
-	@export PATH=$$PATH:$$(go env GOPATH)/bin; wails dev
+
 
 # Quick aliases
 b: build ## Alias for build
 r: run ## Alias for run
 t: test ## Alias for test
 c: clean ## Alias for clean
-g: build-gui ## Alias for build-gui

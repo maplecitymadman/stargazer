@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Core Infrastructure
-- Desktop application built with Wails v2 for native cross-platform experience
+- CLI tool for Kubernetes troubleshooting
 - CLI tool built with Cobra for command-line operations
 - Kubernetes client integration using official client-go library
 - Multi-cluster support with context switching

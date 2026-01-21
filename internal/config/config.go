@@ -11,13 +11,12 @@ import (
 
 // Config represents the Stargazer configuration
 type Config struct {
-	Version       string              `yaml:"version"`
-	Kubeconfig    KubeconfigConfig    `yaml:"kubeconfig,omitempty"`
-	LLM           LLMConfig           `yaml:"llm"`
-	Storage       StorageConfig       `yaml:"storage"`
-	API           APIConfig           `yaml:"api"`
-	CreatedAt     string              `yaml:"created_at"`
-	UpdatedAt     string              `yaml:"updated_at"`
+	Version    string           `yaml:"version"`
+	Kubeconfig KubeconfigConfig `yaml:"kubeconfig,omitempty"`
+	Storage    StorageConfig    `yaml:"storage"`
+	API        APIConfig        `yaml:"api"`
+	CreatedAt  string           `yaml:"created_at"`
+	UpdatedAt  string           `yaml:"updated_at"`
 }
 
 // KubeconfigConfig holds Kubernetes configuration
@@ -26,26 +25,11 @@ type KubeconfigConfig struct {
 	Context string `yaml:"context,omitempty"` // Default context to use
 }
 
-// LLMConfig holds LLM provider configurations
-type LLMConfig struct {
-	DefaultProvider string               `yaml:"default_provider,omitempty"`
-	Providers       map[string]Provider  `yaml:"providers"`
-}
-
-// Provider represents an LLM provider configuration
-type Provider struct {
-	Enabled   bool   `yaml:"enabled"`
-	APIKey    string `yaml:"api_key,omitempty"`
-	Model     string `yaml:"model,omitempty"`
-	BaseURL   string `yaml:"base_url,omitempty"`
-	Encrypted bool   `yaml:"encrypted,omitempty"`
-}
-
 // StorageConfig holds storage settings
 type StorageConfig struct {
-	Path          string `yaml:"path"`
-	RetainDays    int    `yaml:"retain_days"`
-	MaxScanResults int   `yaml:"max_scan_results"`
+	Path           string `yaml:"path"`
+	RetainDays     int    `yaml:"retain_days"`
+	MaxScanResults int    `yaml:"max_scan_results"`
 }
 
 // APIConfig holds API server settings
@@ -129,32 +113,9 @@ func DefaultConfig() *Config {
 	now := nowISO()
 	return &Config{
 		Version: "1.0",
-		LLM: LLMConfig{
-			DefaultProvider: "",
-			Providers: map[string]Provider{
-				"openai": {
-					Enabled: false,
-					Model:   "gpt-4o-mini",
-					BaseURL: "https://api.openai.com/v1",
-				},
-				"anthropic": {
-					Enabled: false,
-					Model:   "claude-3-haiku-20240307",
-				},
-				"gemini": {
-					Enabled: false,
-					Model:   "gemini-pro",
-				},
-				"ollama": {
-					Enabled: false,
-					Model:   "llama3.1",
-					BaseURL: "http://localhost:11434",
-				},
-			},
-		},
 		Storage: StorageConfig{
-			Path:          filepath.Join(DefaultConfigDir, "storage"),
-			RetainDays:    30,
+			Path:           filepath.Join(DefaultConfigDir, "storage"),
+			RetainDays:     30,
 			MaxScanResults: 100,
 		},
 		API: APIConfig{
@@ -165,67 +126,6 @@ func DefaultConfig() *Config {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-}
-
-// IsProviderEnabled checks if a specific provider is enabled
-func (c *Config) IsProviderEnabled(name string) bool {
-	if provider, ok := c.LLM.Providers[name]; ok {
-		return provider.Enabled && provider.APIKey != ""
-	}
-	return false
-}
-
-// GetProvider returns a provider configuration by name
-func (c *Config) GetProvider(name string) (Provider, bool) {
-	provider, ok := c.LLM.Providers[name]
-	return provider, ok
-}
-
-// SetProvider sets or updates a provider configuration
-func (c *Config) SetProvider(name string, provider Provider) {
-	if c.LLM.Providers == nil {
-		c.LLM.Providers = make(map[string]Provider)
-	}
-	c.LLM.Providers[name] = provider
-	c.UpdatedAt = nowISO()
-}
-
-// EnableProvider enables a provider and optionally sets API key
-func (c *Config) EnableProvider(name, apiKey string) error {
-	provider, ok := c.LLM.Providers[name]
-	if !ok {
-		return fmt.Errorf("provider %s not found", name)
-	}
-
-	provider.Enabled = true
-	if apiKey != "" {
-		provider.APIKey = apiKey
-	}
-
-	c.LLM.Providers[name] = provider
-	c.UpdatedAt = nowISO()
-
-	return nil
-}
-
-// DisableProvider disables a provider
-func (c *Config) DisableProvider(name string) {
-	if provider, ok := c.LLM.Providers[name]; ok {
-		provider.Enabled = false
-		c.LLM.Providers[name] = provider
-		c.UpdatedAt = nowISO()
-	}
-}
-
-// GetEnabledProviders returns a list of enabled provider names
-func (c *Config) GetEnabledProviders() []string {
-	var enabled []string
-	for name, provider := range c.LLM.Providers {
-		if provider.Enabled && provider.APIKey != "" {
-			enabled = append(enabled, name)
-		}
-	}
-	return enabled
 }
 
 // Validate validates the configuration

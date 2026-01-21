@@ -1,6 +1,6 @@
 # Stargazer - Kubernetes Troubleshooting Tool
 
-A **native desktop application** (like Docker Desktop) and **CLI tool** for Kubernetes troubleshooting. Connects to any cluster via kubeconfig - no cluster deployment needed!
+A **CLI tool** for Kubernetes troubleshooting. Connects to any cluster via kubeconfig - no cluster deployment needed!
 
 ## 🌟 Features
 
@@ -11,30 +11,11 @@ A **native desktop application** (like Docker Desktop) and **CLI tool** for Kube
 - **Namespace Filtering**: View resources by namespace or cluster-wide
 - **Theme Support**: Dark, Light, and Auto themes
 - **AI-Powered Troubleshooting**: Configure multiple LLM providers
-- **Dual Interface**: Native desktop app + CLI tool
+- **CLI Interface**: Simple command-line interface
 - **Read-Only Permissions**: Safe for production environments
 - **Fast & Lightweight**: Minimal resource usage, fast startup
 
 ## 🚀 Quick Start
-
-### Desktop App (Recommended)
-
-**macOS/Windows/Linux:**
-```bash
-# Install Wails CLI (if not already installed)
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-# Build desktop app
-make build-gui
-# or
-wails build
-
-# Launch the app (macOS: build/bin/Stargazer.app, Windows: build/bin/Stargazer.exe)
-```
-
-The desktop app provides a native GUI experience - no browser needed!
-
-### CLI Tool
 
 ```bash
 # Build CLI
@@ -48,13 +29,6 @@ make build
 
 ### First Run
 
-**Desktop App:**
-1. Launch Stargazer
-2. App automatically connects to your kubeconfig
-3. Configure AI providers in Settings (optional)
-4. Start troubleshooting!
-
-**CLI:**
 ```bash
 # Verify cluster connection
 ./bin/stargazer health
@@ -62,8 +36,6 @@ make build
 # Scan for issues
 ./bin/stargazer scan
 ```
-
-See [DESKTOP_APP.md](./DESKTOP_APP.md) for desktop app details.
 
 ## 📋 CLI Commands
 
@@ -97,41 +69,27 @@ stargazer config show     # Show current configuration
 stargazer/
 ├── cmd/
 │   └── stargazer/        # CLI entry point
-├── app.go                # Desktop app entry point (Wails)
 ├── internal/
 │   ├── api/              # HTTP server & WebSocket
 │   ├── k8s/              # Kubernetes client
 │   ├── config/           # Configuration management
 │   └── storage/          # Local persistence
-├── frontend/             # React/Next.js UI
+├── frontend/             # React/Next.js UI (optional web interface)
 │   ├── app/              # Next.js app directory
 │   ├── components/       # React components
 │   └── lib/              # API client
 ├── go.mod                # Go dependencies
-├── wails.json           # Wails configuration
 └── Makefile             # Build automation
 ```
 
 ## 🛠️ Technology Stack
 
 - **Backend**: Go 1.21+
-- **Frontend**: Next.js 14, React 18, Tailwind CSS
-- **Desktop**: Wails v2
+- **Frontend**: Next.js 14, React 18, Tailwind CSS (optional web UI)
 - **K8s**: client-go (official Kubernetes Go client)
 - **Storage**: JSON file persistence (~/.stargazer/)
 
 ## 📊 Features
-
-### Desktop App
-- Real-time cluster health dashboard
-- Issue discovery and tracking
-- Resource browsing (Pods, Deployments, Events)
-- Service topology visualization
-- Multi-cluster context switching
-- Namespace filtering
-- Theme customization (Dark/Light/Auto)
-- AI provider configuration
-- Settings management
 
 ### CLI
 - Health checks
@@ -159,8 +117,7 @@ stargazer/
 ### Prerequisites
 
 - Go 1.21+
-- Node.js 16+
-- Wails CLI: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- Node.js 16+ (optional, for web UI development)
 - kubectl (for Kubernetes access)
 
 ### Building
@@ -169,14 +126,8 @@ stargazer/
 # Build CLI
 make build
 
-# Build desktop app
-make build-gui
-
-# Build both
-make build-all
-
-# Development mode (desktop app)
-make dev-gui
+# Run in development mode
+make dev
 ```
 
 ### Testing

@@ -139,7 +139,7 @@ func (s *Server) handleSwitchContext(c *gin.Context) {
 
 	// Context switching requires client recreation
 	// The frontend will reload the page which will pick up the new context
-	
+
 	// Save context preference to config
 	cfg, err := config.Load()
 	if err == nil {
@@ -328,9 +328,9 @@ func (s *Server) handleGetAllServices(c *gin.Context) {
 
 	// Format for PathTracer: include ingress-gateway and egress-gateway options
 	formatted := []gin.H{
-		{ "name": "ingress-gateway", "namespace": "", "type": "ingress", "display": "Ingress Gateway" },
-		{ "name": "egress-gateway", "namespace": "", "type": "egress", "display": "Egress Gateway" },
-		{ "name": "external", "namespace": "", "type": "external", "display": "External" },
+		{"name": "ingress-gateway", "namespace": "", "type": "ingress", "display": "Ingress Gateway"},
+		{"name": "egress-gateway", "namespace": "", "type": "egress", "display": "Egress Gateway"},
+		{"name": "external", "namespace": "", "type": "external", "display": "External"},
 	}
 
 	for _, svc := range services {
@@ -373,7 +373,7 @@ func (s *Server) handleGetEventsQuery(c *gin.Context) {
 		return
 	}
 	includeNormal := c.Query("include_normal") == "true"
-	
+
 	// Support "all" for all namespaces
 	ns := namespace
 	if namespace == "all" || namespace == "" {
@@ -622,12 +622,11 @@ func (s *Server) handleGetNetworkPolicyYaml(c *gin.Context) {
 	yamlData := string(jsonData)
 
 	c.JSON(http.StatusOK, gin.H{
-		"name": policy.Name,
+		"name":      policy.Name,
 		"namespace": policy.Namespace,
-		"yaml": yamlData,
+		"yaml":      yamlData,
 	})
 }
-
 
 // Get config (Phase 7)
 func (s *Server) handleGetConfig(c *gin.Context) {
@@ -637,18 +636,7 @@ func (s *Server) handleGetConfig(c *gin.Context) {
 			"error": fmt.Sprintf("Failed to load config: %v", err),
 		})
 		return
-	}
-
-	// Sanitize API keys before sending to client
-	sanitized := cfg
-	for name, provider := range sanitized.LLM.Providers {
-		if provider.APIKey != "" {
-			provider.APIKey = "***REDACTED***"
-			sanitized.LLM.Providers[name] = provider
-		}
-	}
-
-	c.JSON(http.StatusOK, sanitized)
+	c.JSON(http.StatusOK, cfg)}
 }
 
 // Get providers config (v2 style)
@@ -661,26 +649,15 @@ func (s *Server) handleGetProvidersConfig(c *gin.Context) {
 		return
 	}
 
-	// Build providers summary with has_key flag
-	providers := make(map[string]interface{})
-	for name, provider := range cfg.LLM.Providers {
-		providers[name] = map[string]interface{}{
-			"enabled": provider.Enabled,
-			"model":   provider.Model,
-			"has_key": provider.APIKey != "",
-		}
-	}
-
+	// Return basic config info
 	kubeconfigPath := ""
-	client := s.GetK8sClient()
-	if client != nil {
-		kubeconfigPath = client.GetKubeconfigPath()
-	} else if cfg.Kubeconfig.Path != "" {
+	if cfg.Kubeconfig.Path != "" {
 		kubeconfigPath = cfg.Kubeconfig.Path
+	} else {
+		kubeconfigPath = "~/.kube/config (default)"
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"providers": providers,
 		"kubeconfig": gin.H{
 			"path": kubeconfigPath,
 		},
@@ -838,118 +815,6 @@ func (s *Server) handleSetKubeconfig(c *gin.Context) {
 	})
 }
 
-// Set provider model
-func (s *Server) handleSetProviderModel(c *gin.Context) {
-	provider := c.Param("provider")
-	var req struct {
-		Model string `json:"model"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
-		return
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to load config: %v", err),
-		})
-		return
-	}
-
-	if p, exists := cfg.LLM.Providers[provider]; exists {
-		p.Model = req.Model
-		cfg.LLM.Providers[provider] = p
-		if err := cfg.Save(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to save config: %v", err),
-			})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"success": true, "provider": provider, "model": req.Model})
-	} else {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Provider %s not found", provider)})
-	}
-}
-
-// Enable/disable provider
-func (s *Server) handleEnableProvider(c *gin.Context) {
-	provider := c.Param("provider")
-	var req struct {
-		Enabled bool `json:"enabled"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
-		return
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to load config: %v", err),
-		})
-		return
-	}
-
-	if p, exists := cfg.LLM.Providers[provider]; exists {
-		p.Enabled = req.Enabled
-		cfg.LLM.Providers[provider] = p
-		if err := cfg.Save(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("Failed to save config: %v", err),
-			})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"success": true, "provider": provider, "enabled": req.Enabled})
-	} else {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Provider %s not found", provider)})
-	}
-}
-
-// Set provider API key
-func (s *Server) handleSetProviderApiKey(c *gin.Context) {
-	provider := c.Param("provider")
-	var req struct {
-		APIKey string `json:"api_key"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
-		return
-	}
-
-	if req.APIKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "API key is required"})
-		return
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to load config: %v", err),
-		})
-		return
-	}
-
-	if err := cfg.EnableProvider(provider, req.APIKey); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Failed to set API key: %v", err),
-		})
-		return
-	}
-
-	if err := cfg.Save(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to save config: %v", err),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "provider": provider, "has_key": true})
-}
-
 // Set config (Phase 7)
 func (s *Server) handleSetConfig(c *gin.Context) {
 	var updates map[string]interface{}
@@ -968,28 +833,8 @@ func (s *Server) handleSetConfig(c *gin.Context) {
 		return
 	}
 
-	// Apply updates (basic implementation - could be more sophisticated)
-	// For now, just support enabling/disabling providers
-	if providerUpdates, ok := updates["providers"].(map[string]interface{}); ok {
-		for name, value := range providerUpdates {
-			if providerData, ok := value.(map[string]interface{}); ok {
-				if enabled, ok := providerData["enabled"].(bool); ok {
-					if provider, exists := cfg.LLM.Providers[name]; exists {
-						provider.Enabled = enabled
-						cfg.LLM.Providers[name] = provider
-					}
-				}
-				if apiKey, ok := providerData["api_key"].(string); ok && apiKey != "" {
-					if err := cfg.EnableProvider(name, apiKey); err != nil {
-						c.JSON(http.StatusBadRequest, gin.H{
-							"error": fmt.Sprintf("Failed to update provider %s: %v", name, err),
-						})
-						return
-					}
-				}
-			}
-		}
-	}
+	// For now, just save the config as-is
+	// Future: support more sophisticated updates
 
 	if err := cfg.Save(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1018,19 +863,19 @@ func (s *Server) handleSetupWizard(c *gin.Context) {
 func (s *Server) handleMetrics(c *gin.Context) {
 	client := s.GetK8sClient()
 	connected := client != nil
-	
+
 	// Get metrics values
 	requestCount := s.requestCount.Load()
 	errorCount := s.errorCount.Load()
 	durationTotal := s.requestDuration.Load()
 	uptime := time.Since(s.startTime).Seconds()
-	
+
 	// Calculate average request duration
 	avgDuration := 0.0
 	if requestCount > 0 {
 		avgDuration = float64(durationTotal) / float64(requestCount) / 1e9 // Convert nanoseconds to seconds
 	}
-	
+
 	// Prometheus format metrics
 	metrics := fmt.Sprintf(`# HELP stargazer_requests_total Total number of HTTP requests
 # TYPE stargazer_requests_total counter
@@ -1058,7 +903,7 @@ stargazer_connected %d
 		uptime,
 		map[bool]int{true: 1, false: 0}[connected],
 	)
-	
+
 	c.Data(http.StatusOK, "text/plain; version=0.0.4", []byte(metrics))
 }
 
@@ -1095,7 +940,7 @@ func (s *Server) handleGetDeploymentsEmpty(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"deployments": []interface{}{},
-		"count":      0,
+		"count":       0,
 		"namespace":   namespace,
 	})
 }
@@ -1122,7 +967,7 @@ func (s *Server) handleBuildCiliumPolicy(c *gin.Context) {
 
 	builder := client.GetPolicyBuilder()
 	ctx := c.Request.Context()
-	
+
 	yamlContent, err := builder.BuildCiliumNetworkPolicy(ctx, spec)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1161,7 +1006,7 @@ func (s *Server) handleApplyCiliumPolicy(c *gin.Context) {
 
 	builder := client.GetPolicyBuilder()
 	ctx := c.Request.Context()
-	
+
 	namespace := req.Namespace
 	if namespace == "" {
 		namespace = client.GetNamespace()
@@ -1218,7 +1063,7 @@ func (s *Server) handleDeleteCiliumPolicy(c *gin.Context) {
 
 	builder := client.GetPolicyBuilder()
 	ctx := c.Request.Context()
-	
+
 	err := builder.DeleteCiliumNetworkPolicy(ctx, name, namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1253,7 +1098,7 @@ func (s *Server) handleBuildKyvernoPolicy(c *gin.Context) {
 
 	builder := client.GetPolicyBuilder()
 	ctx := c.Request.Context()
-	
+
 	yamlContent, err := builder.BuildKyvernoPolicy(ctx, spec)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1293,7 +1138,7 @@ func (s *Server) handleApplyKyvernoPolicy(c *gin.Context) {
 
 	builder := client.GetPolicyBuilder()
 	ctx := c.Request.Context()
-	
+
 	namespace := req.Namespace
 	if namespace == "" {
 		namespace = client.GetNamespace()
@@ -1337,7 +1182,7 @@ func (s *Server) handleGetRecommendations(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	
+
 	// Get topology first
 	topology, err := client.GetTopology(ctx, ns)
 	if err != nil {
@@ -1358,8 +1203,8 @@ func (s *Server) handleGetRecommendations(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"recommendations": recommendations,
-		"count":          len(recommendations),
-		"namespace":      namespace,
+		"count":           len(recommendations),
+		"namespace":       namespace,
 	})
 }
 
@@ -1386,7 +1231,7 @@ func (s *Server) handleGetComplianceScore(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	
+
 	// Get topology first
 	topology, err := client.GetTopology(ctx, ns)
 	if err != nil {
@@ -1400,12 +1245,12 @@ func (s *Server) handleGetComplianceScore(c *gin.Context) {
 	score, scoreDetails := client.GetComplianceScore(ctx, topology)
 
 	c.JSON(http.StatusOK, gin.H{
-		"score":     score,
-		"passed":    scoreDetails["passed"],
-		"total":     scoreDetails["total"],
-		"details":   scoreDetails["check_details"],
+		"score":                 score,
+		"passed":                scoreDetails["passed"],
+		"total":                 scoreDetails["total"],
+		"details":               scoreDetails["check_details"],
 		"recommendations_count": scoreDetails["recommendations_count"],
-		"namespace": namespace,
+		"namespace":             namespace,
 	})
 }
 
@@ -1447,14 +1292,14 @@ func (s *Server) handleDeleteKyvernoPolicy(c *gin.Context) {
 	name := c.Param("name")
 	namespace := c.Query("namespace")
 	isClusterPolicy := c.Query("cluster_policy") == "true"
-	
+
 	if namespace == "" && !isClusterPolicy {
 		namespace = client.GetNamespace()
 	}
 
 	builder := client.GetPolicyBuilder()
 	ctx := c.Request.Context()
-	
+
 	err := builder.DeleteKyvernoPolicy(ctx, name, namespace, isClusterPolicy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

@@ -42,11 +42,6 @@ func (w *Wizard) Run() (*Config, error) {
 		return nil, err
 	}
 
-	// LLM Providers (optional)
-	if err := w.setupLLMProviders(); err != nil {
-		return nil, err
-	}
-
 	// Save configuration
 	fmt.Println()
 	fmt.Println("💾 Saving configuration...")
@@ -117,84 +112,6 @@ func (w *Wizard) setupStorage() error {
 		return err
 	}
 	w.config.Storage.MaxScanResults = maxResults
-
-	fmt.Println()
-	return nil
-}
-
-func (w *Wizard) setupLLMProviders() error {
-	fmt.Println("🤖 LLM Provider Configuration (Optional)")
-	fmt.Println("----------------------------------------")
-	fmt.Println("Stargazer can use AI for intelligent troubleshooting.")
-	fmt.Println("Configure providers now, or skip and configure later.")
-	fmt.Println()
-
-	configure, err := w.promptBool("Configure LLM providers now?", false)
-	if err != nil {
-		return err
-	}
-
-	if !configure {
-		fmt.Println("⏭️  Skipping LLM configuration")
-		fmt.Println()
-		return nil
-	}
-
-	providers := []string{"openai", "anthropic", "gemini", "ollama"}
-
-	for _, name := range providers {
-		fmt.Printf("\n📦 Configure %s?\n", strings.ToUpper(name))
-		enable, err := w.promptBool("  Enable", false)
-		if err != nil {
-			return err
-		}
-
-		if !enable {
-			continue
-		}
-
-		provider := w.config.LLM.Providers[name]
-		provider.Enabled = true
-
-		// API Key (not for Ollama)
-		if name != "ollama" {
-			apiKey, err := w.promptPassword(fmt.Sprintf("  %s API key", strings.ToUpper(name)))
-			if err != nil {
-				return err
-			}
-			provider.APIKey = apiKey
-		}
-
-		// Model
-		model, err := w.promptString("  Model", provider.Model)
-		if err != nil {
-			return err
-		}
-		provider.Model = model
-
-		// Base URL (for Ollama and OpenAI)
-		if name == "ollama" || name == "openai" {
-			baseURL, err := w.promptString("  Base URL", provider.BaseURL)
-			if err != nil {
-				return err
-			}
-			provider.BaseURL = baseURL
-		}
-
-		w.config.LLM.Providers[name] = provider
-	}
-
-	// Set default provider
-	enabled := w.config.GetEnabledProviders()
-	if len(enabled) > 0 {
-		fmt.Println()
-		fmt.Printf("Available providers: %s\n", strings.Join(enabled, ", "))
-		defaultProvider, err := w.promptString("Default provider", enabled[0])
-		if err != nil {
-			return err
-		}
-		w.config.LLM.DefaultProvider = defaultProvider
-	}
 
 	fmt.Println()
 	return nil

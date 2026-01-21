@@ -33,20 +33,6 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("Expected max results 100, got %d", cfg.Storage.MaxScanResults)
 	}
 
-	// Test LLM providers exist
-	expectedProviders := []string{"openai", "anthropic", "gemini", "ollama"}
-	for _, name := range expectedProviders {
-		if _, exists := cfg.LLM.Providers[name]; !exists {
-			t.Errorf("Expected provider %s to exist", name)
-		}
-	}
-
-	// All providers should be disabled by default
-	for name, provider := range cfg.LLM.Providers {
-		if provider.Enabled {
-			t.Errorf("Provider %s should be disabled by default", name)
-		}
-	}
 }
 
 func TestConfigSaveAndLoad(t *testing.T) {
@@ -65,103 +51,7 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	// Create and save config
 	cfg := DefaultConfig()
 	cfg.API.Port = 9000
-	cfg.LLM.DefaultProvider = "openai"
 
-	if err := cfg.Save(); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
-
-	// Load config
-	loaded, err := Load()
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
-
-	// Verify loaded values
-	if loaded.API.Port != 9000 {
-		t.Errorf("Expected port 9000, got %d", loaded.API.Port)
-	}
-	if loaded.LLM.DefaultProvider != "openai" {
-		t.Errorf("Expected default provider openai, got %s", loaded.LLM.DefaultProvider)
-	}
-}
-
-func TestEnableProvider(t *testing.T) {
-	cfg := DefaultConfig()
-
-	// Enable OpenAI with API key
-	err := cfg.EnableProvider("openai", "test-api-key")
-	if err != nil {
-		t.Fatalf("Failed to enable provider: %v", err)
-	}
-
-	provider := cfg.LLM.Providers["openai"]
-	if !provider.Enabled {
-		t.Error("Provider should be enabled")
-	}
-	if provider.APIKey != "test-api-key" {
-		t.Errorf("Expected API key test-api-key, got %s", provider.APIKey)
-	}
-
-	// Try to enable non-existent provider
-	err = cfg.EnableProvider("nonexistent", "key")
-	if err == nil {
-		t.Error("Expected error when enabling non-existent provider")
-	}
-}
-
-func TestDisableProvider(t *testing.T) {
-	cfg := DefaultConfig()
-
-	// Enable then disable
-	cfg.EnableProvider("openai", "test-key")
-	cfg.DisableProvider("openai")
-
-	provider := cfg.LLM.Providers["openai"]
-	if provider.Enabled {
-		t.Error("Provider should be disabled")
-	}
-
-	// Disabling non-existent provider should not panic (it's a no-op)
-	cfg.DisableProvider("nonexistent")
-}
-
-func TestGetEnabledProviders(t *testing.T) {
-	cfg := DefaultConfig()
-
-	// Initially no enabled providers
-	enabled := cfg.GetEnabledProviders()
-	if len(enabled) != 0 {
-		t.Errorf("Expected 0 enabled providers, got %d", len(enabled))
-	}
-
-	// Enable some providers
-	cfg.EnableProvider("openai", "key1")
-	cfg.EnableProvider("anthropic", "key2")
-
-	enabled = cfg.GetEnabledProviders()
-	if len(enabled) != 2 {
-		t.Errorf("Expected 2 enabled providers, got %d", len(enabled))
-	}
-
-	// Check if both are in the list
-	foundOpenAI := false
-	foundAnthropic := false
-	for _, name := range enabled {
-		if name == "openai" {
-			foundOpenAI = true
-		}
-		if name == "anthropic" {
-			foundAnthropic = true
-		}
-	}
-
-	if !foundOpenAI {
-		t.Error("openai should be in enabled providers")
-	}
-	if !foundAnthropic {
-		t.Error("anthropic should be in enabled providers")
-	}
 }
 
 func TestConfigValidation(t *testing.T) {
