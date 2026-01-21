@@ -51,7 +51,7 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
       setApplying(rec.id);
       if (rec.fix.type === 'networkpolicy') {
         await apiClient.applyNetworkPolicy(rec.fix.template, rec.namespace);
-      } else if (rec.fix.type === 'cilium') {
+      } else if (rec.fix.type === 'cilium' || rec.fix.type === 'ciliumpolicy') {
         await apiClient.applyCiliumPolicy(rec.fix.template, rec.namespace);
       }
       // Reload to show updated state
@@ -104,6 +104,8 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
         return 'info';
       case 'resilience':
         return 'degraded';
+      case 'cost':
+        return 'info';
       default:
         return 'info';
     }

@@ -67,6 +67,7 @@ export default function Navigation({
       subsections: [
         { id: 'score', label: 'Compliance Score' },
         { id: 'recommendations', label: 'Recommendations' },
+        { id: 'cost', label: 'Cost Optimization' },
       ]
     },
     {

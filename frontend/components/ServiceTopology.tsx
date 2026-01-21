@@ -49,6 +49,7 @@ interface ServiceInfo {
   has_service_mesh: boolean;
   service_mesh_type?: string; // "istio", "cilium", or ""
   has_cilium_proxy: boolean;
+  drift_status?: string; // "Synced", "OutOfSync", "Unknown"
 }
 
 interface ConnectivityInfo {
@@ -85,6 +86,11 @@ interface TopologyData {
     connections: any[];
     has_egress_gateway: boolean;
     direct_egress: boolean;
+    drift?: {
+      argo_enabled: boolean;
+      flux_enabled: boolean;
+      applications: any[];
+    };
   };
   network_policies: NetworkPolicyInfo[];
   cilium_policies: CiliumNetworkPolicyInfo[];
@@ -102,6 +108,11 @@ interface TopologyData {
     istio_coverage: string;
   };
   hubble_enabled?: boolean;
+  drift?: {
+    argo_enabled: boolean;
+    flux_enabled: boolean;
+    applications: any[];
+  };
 }
 
 interface NetworkPolicyInfo {
@@ -350,7 +361,13 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                           </span>
                         )}
                       </div>
-                      <div className="text-xs opacity-75">
+                      <div className="text-xs opacity-75 flex items-center gap-2">
+                        {service.drift_status && service.drift_status !== 'Unknown' && (
+                          <span className={`flex items-center gap-1 ${service.drift_status === 'Synced' ? 'text-green-400' : 'text-orange-400'}`} title={`GitOps: ${service.drift_status}`}>
+                            <Icon name={service.drift_status === 'Synced' ? 'check' : 'info'} size="sm" />
+                            {service.drift_status === 'Synced' ? 'GitOps' : 'Drifted'}
+                          </span>
+                        )}
                         <span className="text-green-400">{connInfo?.can_reach.length || 0}</span> → <span className="text-red-400">{connInfo?.blocked_from.length || 0}</span> ✗
                       </div>
                     </div>
@@ -798,7 +815,15 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                   className={topology.infrastructure.network_policies > 0 ? "text-green-400" : "text-gray-500"} />
             <div>
               <span className="text-sm text-[#71717a] block">K8s Policies</span>
-              <span className="text-xs text-[#a1a1aa]">{topology.infrastructure.network_policies}</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.infrastructure.network_policies} policies</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Icon name={topology.drift?.argo_enabled ? "check" : "close"}
+                  className={topology.drift?.argo_enabled ? "text-[#3b82f6]" : "text-gray-500"} />
+            <div>
+              <span className="text-sm text-[#71717a] block">GitOps</span>
+              <span className="text-xs text-[#a1a1aa]">{topology.drift?.argo_enabled ? "ArgoCD" : "None"}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">

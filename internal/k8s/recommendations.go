@@ -705,6 +705,54 @@ var BestPractices = []NetworkingBestPractice{
 			return len(recommendations) == 0, recommendations
 		},
 	},
+	{
+		ID:          "drift-001",
+		Name:        "GitOps Synchronization Status",
+		Description: "Live cluster state should match the desired state in GitOps (ArgoCD/Flux)",
+		Category:    "security",
+		Severity:    "high",
+		Check: func(ctx context.Context, topology *TopologyData) (bool, []Recommendation) {
+			var recommendations []Recommendation
+
+			for serviceKey, service := range topology.Services {
+				if service.DriftStatus == "OutOfSync" {
+					recommendations = append(recommendations, Recommendation{
+						ID:          fmt.Sprintf("drift-001-%s", serviceKey),
+						Title:       fmt.Sprintf("GitOps Drift: %s", service.Name),
+						Description: fmt.Sprintf("Service %s/%s has drifted from its GitOps source of truth. This could indicate unauthorized manual changes or a failed deployment.", service.Namespace, service.Name),
+						Category:    "security",
+						Severity:    "high",
+						Service:     serviceKey,
+						Namespace:   service.Namespace,
+						Fix: FixRecommendation{
+							Type: "gitops",
+							ManualSteps: []string{
+								"1. Open ArgoCD/Flux dashboard to inspect the drift",
+								"2. Sync the application to restore the desired state",
+								"3. If change was intentional, update the Git repository",
+							},
+						},
+						Impact: "Ensures the cluster state is predictable and managed via version control (GitOps).",
+					})
+				}
+			}
+
+			return len(recommendations) == 0, recommendations
+		},
+	},
+	{
+		ID:          "cost-001",
+		Name:        "Detect Zombie Services",
+		Description: "Services with zero traffic over 24h should be identified and potentially downscaled to save costs",
+		Category:    "cost",
+		Severity:    "low",
+		Check: func(ctx context.Context, topology *TopologyData) (bool, []Recommendation) {
+			var recommendations []Recommendation
+			// Zombie services are flagged during troubleshooting in analyzer.go
+			// This check serves as a placeholder for the compliance score calculation
+			return true, recommendations
+		},
+	},
 }
 
 // Helper function to generate K8s NetworkPolicy template based on actual connections

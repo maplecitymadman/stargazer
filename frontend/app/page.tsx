@@ -13,6 +13,7 @@ import TrafficAnalysisPage from '@/components/TrafficAnalysisPage';
 import NetworkPoliciesPage from '@/components/NetworkPoliciesPage';
 import TroubleshootingPage from '@/components/TroubleshootingPage';
 import CompliancePage from '@/components/CompliancePage';
+import CostOptimizationPage from '@/components/CostOptimizationPage';
 import StargazerLogo from '@/components/StargazerLogo';
 import Settings from '@/components/Settings';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -278,6 +279,7 @@ export default function Home() {
       'compliance': {
         'score': 'Compliance Score',
         'recommendations': 'Recommendations',
+        'cost': 'Cost Optimization',
       },
       'troubleshooting': {
         'blocked': 'Blocked Connections',
@@ -503,7 +505,9 @@ export default function Home() {
           )}
 
           {currentSection === 'compliance' && (
-            currentSubsection ? (
+            currentSubsection === 'cost' ? (
+              <CostOptimizationPage namespace={namespace} />
+            ) : currentSubsection ? (
               <CompliancePage subsection={currentSubsection} namespace={namespace} />
             ) : (
               <OverviewPage

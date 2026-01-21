@@ -47,6 +47,7 @@ type TopologyData struct {
 	Infrastructure  InfrastructureInfo          `json:"infrastructure"`
 	Summary         TopologySummary             `json:"summary"`
 	RBAC            RBACData                    `json:"rbac,omitempty"`
+	Drift           DriftData                   `json:"drift,omitempty"`
 	HubbleEnabled   bool                        `json:"hubble_enabled,omitempty"`
 }
 
@@ -65,6 +66,7 @@ type ServiceInfo struct {
 	ServiceMeshType string   `json:"service_mesh_type,omitempty"` // "istio", "cilium", or ""
 	HasCiliumProxy  bool     `json:"has_cilium_proxy"`
 	PodSecurity     string   `json:"pod_security,omitempty"` // "privileged", "baseline", "restricted"
+	DriftStatus     string   `json:"drift_status,omitempty"` // "Synced", "OutOfSync", "Unknown"
 }
 
 // ConnectivityInfo represents connectivity information for a service
@@ -126,6 +128,22 @@ type SubjectInfo struct {
 type ServiceAccountInfo struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+}
+
+// DriftData represents GitOps drift information
+type DriftData struct {
+	ArgoEnabled  bool          `json:"argo_enabled"`
+	FluxEnabled  bool          `json:"flux_enabled"`
+	Applications []ArgoAppInfo `json:"applications,omitempty"`
+}
+
+// ArgoAppInfo represents an ArgoCD Application status
+type ArgoAppInfo struct {
+	Name           string `json:"name"`
+	Namespace      string `json:"namespace"`
+	Status         string `json:"status"` // "Synced", "OutOfSync"
+	RepoURL        string `json:"repo_url"`
+	TargetRevision string `json:"target_revision"`
 }
 
 // CiliumNetworkPolicyInfo represents a Cilium NetworkPolicy
@@ -343,6 +361,7 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 		istioPolicies   []IstioPolicyInfo
 		kyvernoPolicies []KyvernoPolicyInfo
 		rbacData        RBACData
+		driftData       DriftData
 	)
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -411,6 +430,17 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 		return nil
 	})
 
+	// Fetch Drift data
+	g.Go(func() error {
+		var err error
+		driftData, err = c.getDriftData(ctx, ns)
+		if err != nil {
+			fmt.Printf("Warning: Failed to get drift data: %v\n", err)
+			return nil
+		}
+		return nil
+	})
+
 	// Wait for all fetches to complete
 	if err := g.Wait(); err != nil {
 		return nil, fmt.Errorf("failed to fetch topology data: %w", err)
@@ -431,6 +461,9 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 
 	// Detect Hubble
 	hubbleEnabled := c.detectHubble(ctx)
+
+	// Map services to drift status
+	c.mapServiceToDrift(services, driftData)
 
 	// Build connectivity map
 	connectivity := c.buildConnectivityMap(ctx, services, ingress, egress, networkPolicies, ciliumPolicies, istioPolicies, infra)
@@ -457,6 +490,7 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 		Infrastructure:  infra,
 		Summary:         summary,
 		RBAC:            rbacData,
+		Drift:           driftData,
 		HubbleEnabled:   hubbleEnabled,
 	}
 

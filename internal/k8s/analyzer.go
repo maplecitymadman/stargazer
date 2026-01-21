@@ -170,6 +170,49 @@ func (c *Client) troubleshootService(ctx context.Context, name, namespace string
 		)
 	}
 
+	// Check for Zombie Service (no traffic)
+	if c.prometheusURL != "" {
+		query := fmt.Sprintf("sum(rate(istio_requests_total{destination_service_name=\"%s\", destination_service_namespace=\"%s\"}[24h]))", name, namespace)
+		metrics, err := c.queryPrometheus(ctx, query)
+		if err == nil && len(metrics.Data.Result) > 0 {
+			// If result exists, traffic is being recorded. Check value.
+			val := metrics.Data.Result[0].Value
+			if len(val) >= 2 {
+				rpsStr, ok := val[1].(string)
+				if ok && rpsStr == "0" {
+					result.Issues = append(result.Issues, Issue{
+						ID:           GenerateIssueID(name, "zombie-service"),
+						Title:        "Zombie Service (No Traffic)",
+						Description:  "This service has received zero traffic over the last 24 hours.",
+						Priority:     PriorityLow,
+						ResourceType: "Service",
+						ResourceName: name,
+						Namespace:    namespace,
+					})
+					result.Recommendations = append(result.Recommendations,
+						"Consider downscaling or decommissioning this service to save resources",
+						"Verify if this service is still required by other components",
+					)
+				}
+			}
+		} else if err == nil && len(metrics.Data.Result) == 0 {
+			// No results in Prometheus usually means no traffic recorded at all
+			result.Issues = append(result.Issues, Issue{
+				ID:           GenerateIssueID(name, "zombie-service"),
+				Title:        "Zombie Service (No Traffic)",
+				Description:  "No traffic data found for this service in the last 24 hours.",
+				Priority:     PriorityLow,
+				ResourceType: "Service",
+				ResourceName: name,
+				Namespace:    namespace,
+			})
+			result.Recommendations = append(result.Recommendations,
+				"Investigate if this service is obsolete",
+				"Consider reducing the number of replicas to 1 or 0",
+			)
+		}
+	}
+
 	return result, nil
 }
 

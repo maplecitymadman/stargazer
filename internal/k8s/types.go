@@ -12,6 +12,7 @@ const (
 	PriorityCritical Priority = "CRITICAL"
 	PriorityHigh     Priority = "HIGH"
 	PriorityWarning  Priority = "WARNING"
+	PriorityLow      Priority = "LOW"
 	PriorityInfo     Priority = "INFO"
 )
 

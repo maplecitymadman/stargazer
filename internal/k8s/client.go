@@ -29,6 +29,7 @@ type Client struct {
 	kubeconfigPath string
 	context        string
 	restConfig     *rest.Config
+	prometheusURL  string
 }
 
 // cache holds cached K8s API responses with TTL
