@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -534,6 +535,77 @@ func (c *Client) ClearCache() {
 func (c *Client) Health(ctx context.Context) error {
 	_, err := c.clientset.Discovery().ServerVersion()
 	return err
+}
+
+// SearchResult represents a search hit
+type SearchResult struct {
+	Type      string `json:"type"` // "service", "pod", "deployment", "node"
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Status    string `json:"status,omitempty"`
+}
+
+// SearchResources searches for resources matching the query
+func (c *Client) SearchResources(ctx context.Context, query string) ([]SearchResult, error) {
+	results := []SearchResult{}
+	query = strings.ToLower(query)
+
+	// Search Services
+	svcs, err := c.clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, svc := range svcs.Items {
+			if strings.Contains(strings.ToLower(svc.Name), query) {
+				results = append(results, SearchResult{
+					Type:      "service",
+					Name:      svc.Name,
+					Namespace: svc.Namespace,
+				})
+			}
+		}
+	}
+
+	// Search Pods
+	pods, err := c.clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, pod := range pods.Items {
+			if strings.Contains(strings.ToLower(pod.Name), query) {
+				results = append(results, SearchResult{
+					Type:      "pod",
+					Name:      pod.Name,
+					Namespace: pod.Namespace,
+					Status:    string(pod.Status.Phase),
+				})
+			}
+		}
+	}
+
+	// Search Nodes
+	nodes, err := c.clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, node := range nodes.Items {
+			if strings.Contains(strings.ToLower(node.Name), query) {
+				results = append(results, SearchResult{
+					Type:   "node",
+					Name:   node.Name,
+					Status: getNodeStatus(node),
+				})
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func getNodeStatus(node corev1.Node) string {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady {
+			if condition.Status == corev1.ConditionTrue {
+				return "Ready"
+			}
+			return "NotReady"
+		}
+	}
+	return "Unknown"
 }
 
 // PolicyWatcher watches for policy changes

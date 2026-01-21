@@ -159,7 +159,22 @@ export interface PathHop {
   service_mesh?: string;
 }
 
+export interface SearchResult {
+  type: string;
+  name: string;
+  namespace: string;
+  status: string;
+}
+
 export const apiClient = {
+  // ... existing methods
+  async searchResources(query: string): Promise<SearchResult[]> {
+    const response = await api.get<SearchResult[]>("/api/search", {
+      params: { query },
+    });
+    return response.data;
+  },
+  // ... rest of apiClient
   async getHealth(namespace?: string): Promise<ClusterHealth> {
     try {
       const response = await api.get<ClusterHealth>("/api/cluster/health", {

@@ -160,6 +160,9 @@ func (s *Server) setupRoutes() {
 		// Troubleshooting
 		api.GET("/troubleshoot", s.handleTroubleshoot)
 
+		// Search
+		api.GET("/search", s.handleSearch)
+
 		// Topology (Phase 2 deferred) - expensive endpoints, stricter rate limiting
 		topologyGroup := api.Group("/topology")
 		topologyGroup.Use(rateLimitMiddleware(5)) // 5 req/min for expensive topology calls

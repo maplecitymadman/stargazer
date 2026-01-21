@@ -5,6 +5,7 @@ import { Icon } from './SpaceshipIcons';
 import StargazerLogo from './StargazerLogo';
 import ContextSelector from './ContextSelector';
 import NamespaceSelector from './NamespaceSelector';
+import GlobalResourceSearch from './GlobalResourceSearch';
 
 interface NavigationProps {
   currentSection: string;
@@ -32,6 +33,7 @@ export default function Navigation({
 }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set([currentSection]));
+  const [showSearch, setShowSearch] = useState(false);
 
   const sections: NavSection[] = [
     {
@@ -132,6 +134,14 @@ export default function Navigation({
                 currentNamespace={namespace}
                 onNamespaceChange={onNamespaceChange}
               />
+              <button
+                onClick={() => setShowSearch(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 bg-[#1a1a24] hover:bg-[#272732] border border-[rgba(255,255,255,0.08)] rounded-md text-[#a1a1aa] hover:text-[#e4e4e7] transition-all text-sm group"
+              >
+                <Icon name="scan" size="sm" />
+                <span className="flex-1 text-left">Search resources...</span>
+                <span className="text-[10px] bg-[rgba(255,255,255,0.05)] px-1.5 py-0.5 rounded border border-[rgba(255,255,255,0.05)] group-hover:border-[rgba(255,255,255,0.1)]">⌘K</span>
+              </button>
             </div>
           </div>
 
@@ -222,6 +232,22 @@ export default function Navigation({
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden transition-opacity"
           onClick={() => setIsOpen(false)}
+        />
+      )}
+      {/* Search Modal */}
+      {showSearch && (
+        <GlobalResourceSearch
+          onClose={() => setShowSearch(false)}
+          onNavigate={(type, name, namespace) => {
+            // Basic navigation logic
+            if (type === 'service') {
+              onSectionChange('traffic-analysis', 'topology');
+            } else if (type === 'pod') {
+              onSectionChange('troubleshooting', 'services');
+            } else {
+              onSectionChange('dashboard');
+            }
+          }}
         />
       )}
     </>

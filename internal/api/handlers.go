@@ -798,6 +798,34 @@ func (s *Server) handleGetKubeconfigStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
+// Search resources
+func (s *Server) handleSearch(c *gin.Context) {
+	query := c.Query("query")
+	if query == "" {
+		c.JSON(http.StatusOK, []k8s.SearchResult{})
+		return
+	}
+
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+	results, err := client.SearchResources(ctx, query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Search failed: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
 // Set kubeconfig path
 func (s *Server) handleSetKubeconfig(c *gin.Context) {
 	var req struct {
