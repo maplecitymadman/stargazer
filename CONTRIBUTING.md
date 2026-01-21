@@ -53,8 +53,12 @@ Ensure you have the following installed:
 - **npm or yarn** - Comes with Node.js
 
   ```
+
+  ```
+
 - **kubectl** - For testing with real Kubernetes clusters
 - **golangci-lint** (optional but recommended) - For code linting
+
   ```bash
   # macOS
   brew install golangci-lint
@@ -62,25 +66,33 @@ Ensure you have the following installed:
   # Linux
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
   ```
+
 - **air** (optional) - For hot-reloading during development
   ```bash
   go install github.com/air-verse/air@latest
+  ```
+- **pre-commit** - For managing and maintaining multi-language pre-commit hooks
+  ```bash
+  brew install pre-commit
   ```
 
 ### Initial Setup
 
 1. **Clone your fork:**
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/stargazer.git
    cd stargazer
    ```
 
 2. **Add upstream remote:**
+
    ```bash
    git remote add upstream https://github.com/maplecitymadman/stargazer.git
    ```
 
 3. **Install Go dependencies:**
+
    ```bash
    make deps
    # or manually
@@ -89,6 +101,7 @@ Ensure you have the following installed:
    ```
 
 4. **Install frontend dependencies:**
+
    ```bash
    cd frontend
    npm install
@@ -96,6 +109,7 @@ Ensure you have the following installed:
    ```
 
 5. **Verify your setup:**
+
    ```bash
    # Build CLI
    make build
@@ -105,6 +119,11 @@ Ensure you have the following installed:
 
    # Build desktop app (optional)
    make build-gui
+   ```
+
+6. **Install pre-commit hooks:**
+   ```bash
+   pre-commit install
    ```
 
 ### Ensure PATH is Configured
@@ -122,6 +141,7 @@ Add this to your `.bashrc`, `.zshrc`, or equivalent shell configuration file.
 ### Running the Application
 
 **CLI Development:**
+
 ```bash
 # Run CLI directly
 make run
@@ -131,12 +151,14 @@ make dev
 ```
 
 **Desktop App Development:**
+
 ```bash
 # Run desktop app in development mode with hot-reload
 make dev-gui
 ```
 
 **Frontend Only:**
+
 ```bash
 cd frontend
 npm run dev
@@ -145,6 +167,7 @@ npm run dev
 ### Making Changes
 
 1. **Create a feature branch:**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -156,6 +179,7 @@ npm run dev
    - Update documentation as needed
 
 3. **Test your changes:**
+
    ```bash
    # Run all tests
    make test
@@ -171,12 +195,14 @@ npm run dev
    ```
 
 4. **Commit your changes:**
+
    ```bash
    git add .
    git commit -m "feat: add new feature description"
    ```
 
 5. **Keep your branch up to date:**
+
    ```bash
    git fetch upstream
    git rebase upstream/main
@@ -227,6 +253,7 @@ We follow standard Go conventions and best practices:
    - Use goimports or organize manually
 
 Example:
+
 ```go
 // GetPodStatus retrieves the current status of a pod in the specified namespace.
 // It returns an error if the pod cannot be found or if there's a connection issue.
@@ -270,9 +297,13 @@ make lint
 
 # Frontend linting
 cd frontend && npm run lint
+
+# Run all pre-commit hooks
+pre-commit run --all-files
 ```
 
 If `golangci-lint` reports issues, fix them before submitting. Common issues include:
+
 - Unused variables or imports
 - Error handling violations
 - Code complexity warnings
@@ -295,6 +326,7 @@ All contributions must include appropriate tests:
    - Use package-level test files for integration tests
 
 3. **Running Tests:**
+
    ```bash
    # Run all tests
    make test
@@ -307,6 +339,7 @@ All contributions must include appropriate tests:
    ```
 
 4. **Test Example:**
+
    ```go
    func TestGetPodStatus(t *testing.T) {
        tests := []struct {
@@ -557,6 +590,7 @@ Create a new issue with the following information:
 **Title:** Brief, descriptive title
 
 **Description:**
+
 - What happened?
 - What did you expect to happen?
 - Steps to reproduce
@@ -584,9 +618,12 @@ Create a new issue with the following information:
 
 **Logs:**
 ```
+
 panic: runtime error: index out of range
 ...
+
 ```
+
 ```
 
 ## Feature Requests
@@ -606,6 +643,7 @@ Create a new issue with:
 **Title:** Clear, concise feature description
 
 **Description:**
+
 - What problem does this solve?
 - Who would benefit from this feature?
 - Proposed solution or implementation ideas
