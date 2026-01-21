@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -209,9 +210,15 @@ func (s *Server) setupRoutes() {
 		s.handleWebSocket(c.Writer, c.Request)
 	})
 
-	// Serve static frontend files from /app/frontend/out
-	s.router.Static("/_next/static", "/app/frontend/out/_next/static")
-	s.router.StaticFile("/favicon.ico", "/app/frontend/out/favicon.ico")
+	// Determine frontend path (container vs local)
+	frontendPath := "/app/frontend/out"
+	if _, err := os.Stat(frontendPath); os.IsNotExist(err) {
+		frontendPath = "frontend/out"
+	}
+
+	// Serve static frontend files
+	s.router.Static("/_next/static", fmt.Sprintf("%s/_next/static", frontendPath))
+	s.router.StaticFile("/favicon.ico", fmt.Sprintf("%s/favicon.ico", frontendPath))
 
 	// Serve index.html for root and all other routes (SPA routing)
 	s.router.NoRoute(func(c *gin.Context) {
@@ -221,12 +228,12 @@ func (s *Server) setupRoutes() {
 			return
 		}
 		// Otherwise serve the frontend
-		c.File("/app/frontend/out/index.html")
+		c.File(fmt.Sprintf("%s/index.html", frontendPath))
 	})
 
 	// Serve root as index.html
 	s.router.GET("/", func(c *gin.Context) {
-		c.File("/app/frontend/out/index.html")
+		c.File(fmt.Sprintf("%s/index.html", frontendPath))
 	})
 }
 

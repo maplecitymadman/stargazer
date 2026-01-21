@@ -83,6 +83,33 @@ export default function NetworkPoliciesPage({ subsection, namespace }: NetworkPo
 
 // View Policies Tab
 function ViewPolicies({ topology, namespace }: { topology: any; namespace?: string }) {
+  const [selectedPolicy, setSelectedPolicy] = useState<{name: string, type: string} | null>(null);
+  const [policyYaml, setPolicyYaml] = useState<string>('');
+  const [loadingYaml, setLoadingYaml] = useState(false);
+
+  useEffect(() => {
+    if (selectedPolicy) {
+      loadPolicyYaml();
+    } else {
+      setPolicyYaml('');
+    }
+  }, [selectedPolicy]);
+
+  const loadPolicyYaml = async () => {
+    if (!selectedPolicy) return;
+    setLoadingYaml(true);
+    try {
+      // Currently only supporting standard NetworkPolicies for YAML retrieval in this demo
+      // In a real app, we'd have endpoints for Cilium/Kyverno YAMLs too
+      const data = await apiClient.getNetworkPolicyYaml(selectedPolicy.name, namespace);
+      setPolicyYaml(data.yaml || JSON.stringify(data, null, 2));
+    } catch (error) {
+       setPolicyYaml('Error loading policy details. Context might be missing or policy not found.');
+    } finally {
+      setLoadingYaml(false);
+    }
+  };
+
   if (!topology) {
     return (
       <div className="card rounded-lg p-8 text-center">
@@ -101,58 +128,129 @@ function ViewPolicies({ topology, namespace }: { topology: any; namespace?: stri
   const infra = topology.infrastructure || {};
 
   return (
-    <div className="space-y-4">
-      {/* Policy Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="card rounded-lg p-4">
-          <div className="text-xs text-[#71717a] mb-1">K8s NetworkPolicies</div>
-          <div className="text-2xl font-bold text-[#e4e4e7]">{infra.network_policies || 0}</div>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
+        {/* Policy Summary */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="card rounded-lg p-4 bg-[#1a1a24]/50 border border-[rgba(255,255,255,0.05)]">
+            <div className="text-xs text-[#71717a] mb-1 font-medium uppercase tracking-wider">K8s Native</div>
+            <div className="text-2xl font-bold text-[#e4e4e7]">{infra.network_policies || 0}</div>
+          </div>
+          <div className="card rounded-lg p-4 bg-[#1a1a24]/50 border border-[rgba(255,255,255,0.05)]">
+            <div className="text-xs text-[#71717a] mb-1 font-medium uppercase tracking-wider">Cilium</div>
+            <div className="text-2xl font-bold text-[#e4e4e7]">{infra.cilium_policies || 0}</div>
+          </div>
+          <div className="card rounded-lg p-4 bg-[#1a1a24]/50 border border-[rgba(255,255,255,0.05)]">
+            <div className="text-xs text-[#71717a] mb-1 font-medium uppercase tracking-wider">Istio</div>
+            <div className="text-2xl font-bold text-[#e4e4e7]">{infra.istio_policies || 0}</div>
+          </div>
+          <div className="card rounded-lg p-4 bg-[#1a1a24]/50 border border-[rgba(255,255,255,0.05)]">
+            <div className="text-xs text-[#71717a] mb-1 font-medium uppercase tracking-wider">Kyverno</div>
+            <div className="text-2xl font-bold text-[#e4e4e7]">{infra.kyverno_policies || 0}</div>
+          </div>
         </div>
-        <div className="card rounded-lg p-4">
-          <div className="text-xs text-[#71717a] mb-1">Cilium Policies</div>
-          <div className="text-2xl font-bold text-[#e4e4e7]">{infra.cilium_policies || 0}</div>
-        </div>
-        <div className="card rounded-lg p-4">
-          <div className="text-xs text-[#71717a] mb-1">Istio Policies</div>
-          <div className="text-2xl font-bold text-[#e4e4e7]">{infra.istio_policies || 0}</div>
-        </div>
-        <div className="card rounded-lg p-4">
-          <div className="text-xs text-[#71717a] mb-1">Kyverno Policies</div>
-          <div className="text-2xl font-bold text-[#e4e4e7]">{infra.kyverno_policies || 0}</div>
+
+        {/* Policy Lists */}
+        <div className="space-y-6">
+          {/* K8s NetworkPolicies */}
+          <div className="card rounded-lg p-5">
+            <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7] flex items-center gap-2">
+              <Icon name="scan" className="text-blue-400" size="sm" />
+              Kubernetes NetworkPolicies
+            </h3>
+            {topology.network_policies && topology.network_policies.length > 0 ? (
+              <div className="space-y-2">
+                {topology.network_policies.map((policy: any, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedPolicy({ name: policy.name, type: 'k8s' })}
+                    className={`w-full text-left p-3 rounded border transition-all flex items-center justify-between group ${
+                      selectedPolicy?.name === policy.name
+                        ? 'bg-[#3b82f6]/10 border-[#3b82f6]/50'
+                        : 'bg-[#1a1a24] border-[rgba(255,255,255,0.08)] hover:border-[#3b82f6]/30'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-[#e4e4e7] group-hover:text-[#3b82f6] transition-colors">
+                        {policy.name}
+                      </div>
+                      <div className="text-xs text-[#71717a]">Namespace: {policy.namespace}</div>
+                    </div>
+                    <Icon name="arrowRight" className="text-[#71717a] group-hover:text-[#3b82f6] opacity-0 group-hover:opacity-100 transition-all" size="sm" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[#71717a] italic">No standard network policies found.</p>
+            )}
+          </div>
+
+          {/* Cilium Policies */}
+          <div className="card rounded-lg p-5">
+            <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7] flex items-center gap-2">
+              <Icon name="scan" className="text-purple-400" size="sm" />
+              Cilium NetworkPolicies
+            </h3>
+            {topology.cilium_policies && topology.cilium_policies.length > 0 ? (
+              <div className="space-y-2">
+                {topology.cilium_policies.map((policy: any, idx: number) => (
+                  <button
+                     key={idx}
+                    onClick={() => setSelectedPolicy({ name: policy.name, type: 'cilium' })}
+                    className={`w-full text-left p-3 rounded border transition-all flex items-center justify-between group ${
+                      selectedPolicy?.name === policy.name
+                        ? 'bg-[#3b82f6]/10 border-[#3b82f6]/50'
+                        : 'bg-[#1a1a24] border-[rgba(255,255,255,0.08)] hover:border-[#3b82f6]/30'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-[#e4e4e7] group-hover:text-[#3b82f6] transition-colors">{policy.name}</div>
+                      <div className="text-xs text-[#71717a]">Namespace: {policy.namespace}</div>
+                    </div>
+                    <Icon name="arrowRight" className="text-[#71717a] group-hover:text-[#3b82f6] opacity-0 group-hover:opacity-100 transition-all" size="sm" />
+                  </button>
+                ))}
+              </div>
+            ) : (
+                <p className="text-sm text-[#71717a] italic">No Cilium policies found.</p>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Policy Lists */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* K8s NetworkPolicies */}
-        {topology.network_policies && topology.network_policies.length > 0 && (
-          <div className="card rounded-lg p-5">
-            <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Kubernetes NetworkPolicies</h3>
-            <div className="space-y-2">
-              {topology.network_policies.map((policy: any, idx: number) => (
-                <div key={idx} className="p-3 bg-[#1a1a24] rounded border border-[rgba(255,255,255,0.08)]">
-                  <div className="text-sm font-medium text-[#e4e4e7]">{policy.name}</div>
-                  <div className="text-xs text-[#71717a]">Namespace: {policy.namespace}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Details Panel */}
+      <div className="lg:col-span-1">
+        <div className="card rounded-lg p-5 sticky top-24 h-[calc(100vh-8rem)] flex flex-col">
+          <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Policy Details</h3>
+          {selectedPolicy ? (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="mb-4">
+                 <div className="text-xs text-[#71717a] uppercase mb-1">SELECTED POLICY</div>
+                 <div className="text-base font-bold text-[#e4e4e7] break-all">{selectedPolicy.name}</div>
+                 <div className="text-xs text-[#3b82f6] font-mono mt-1">{selectedPolicy.type.toUpperCase()}</div>
+              </div>
 
-        {/* Cilium Policies */}
-        {topology.cilium_policies && topology.cilium_policies.length > 0 && (
-          <div className="card rounded-lg p-5">
-            <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Cilium NetworkPolicies</h3>
-            <div className="space-y-2">
-              {topology.cilium_policies.map((policy: any, idx: number) => (
-                <div key={idx} className="p-3 bg-[#1a1a24] rounded border border-[rgba(255,255,255,0.08)]">
-                  <div className="text-sm font-medium text-[#e4e4e7]">{policy.name}</div>
-                  <div className="text-xs text-[#71717a]">Namespace: {policy.namespace}</div>
-                </div>
-              ))}
+               <div className="flex-1 bg-[#0a0a0f] rounded border border-[rgba(255,255,255,0.08)] p-3 overflow-auto">
+                 {loadingYaml ? (
+                   <div className="h-full flex flex-col items-center justify-center text-[#71717a]">
+                      <Icon name="loading" className="animate-pulse mb-2 text-[#3b82f6]" size="md" />
+                      <span className="text-xs">Fetching policy definition...</span>
+                   </div>
+                 ) : (
+                   <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap break-all">
+                     {policyYaml || "No details available."}
+                   </pre>
+                 )}
+               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-center text-[#71717a] border-2 border-dashed border-[rgba(255,255,255,0.05)] rounded-lg">
+              <Icon name="info" className="mb-3 opacity-50" size="lg" />
+              <p className="text-sm font-medium">Select a policy</p>
+              <p className="text-xs opacity-70 mt-1 max-w-[200px]">Click on a policy from the list to view its configuration.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

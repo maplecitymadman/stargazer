@@ -1,29 +1,28 @@
-# Stage 1: Build Backend
-FROM golang:alpine AS backend-builder
-WORKDIR /app
-COPY . .
-ENV GOTOOLCHAIN=auto
-RUN go build -ldflags "-s -w" -o bin/stargazer cmd/stargazer/main.go
+# Use official Python runtime as a parent image
+FROM python:3.11-slim
 
-# Stage 2: Build Frontend
-FROM node:18-alpine AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm install
-COPY frontend/ .
-RUN npm run build
-
-# Stage 3: Final Image
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+# Set working directory
 WORKDIR /app
 
-# Copy binary from backend builder
-COPY --from=backend-builder /app/bin/stargazer /usr/local/bin/stargazer
-RUN chmod 755 /usr/local/bin/stargazer
+# Install system dependencies
+# We might need gcc or other build tools if some python packages require them,
+# but for now we'll stick to basic slim image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy frontend assets from frontend builder
-COPY --from=frontend-builder /app/frontend/out /app/frontend/out
+# Copy requirements
+COPY requirements.txt .
 
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ src/
+
+# Expose port (if web server is used, default 8000)
 EXPOSE 8000
-CMD ["stargazer"]
+
+# Run the application
+# We use -m src.main to support relative imports within the package
+ENTRYPOINT ["python", "-m", "src.main"]

@@ -76,7 +76,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Policy Permissiveness */}
         <button
-          onClick={() => onNavigate?.('traffic-monitor')}
+          onClick={() => onNavigate?.('traffic-analysis')}
           className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
             connectionHealth !== null && connectionHealth < 80
               ? 'border-amber-500/20 hover:border-amber-500/40 hover:shadow-[0_0_20px_-5px_rgba(245,158,11,0.2)]'
@@ -108,7 +108,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
 
         {/* Service Mesh Connections */}
         <button
-          onClick={() => onNavigate?.('network-graph')}
+          onClick={() => onNavigate?.('traffic-analysis')}
           className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
             meshCoveragePercent >= 80
               ? 'border-[rgba(255,255,255,0.08)] hover:border-blue-500/30 hover:shadow-[0_0_20px_-5px_rgba(59,130,246,0.2)]'
@@ -140,7 +140,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
 
         {/* Policy Enforcement Rate */}
         <button
-          onClick={() => onNavigate?.('policies')}
+          onClick={() => onNavigate?.('network-policies')}
           className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
              connectionHealth !== null && connectionHealth >= 95
               ? 'border-[rgba(255,255,255,0.08)] hover:border-cyan-500/30 hover:shadow-[0_0_20px_-5px_rgba(6,182,212,0.2)]'
@@ -170,7 +170,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
 
         {/* Compliance Score */}
         <button
-          onClick={() => onNavigate?.('resources')}
+          onClick={() => onNavigate?.('compliance')}
            className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
             (score?.score || 0) < 60
               ? 'border-red-500/20 hover:border-red-500/40'

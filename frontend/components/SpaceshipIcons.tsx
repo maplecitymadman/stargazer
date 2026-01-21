@@ -34,6 +34,7 @@ export const Icons = {
   // Branding
   logo: '◈',
   stargazer: '◈',
+  arrowRight: '→',
 };
 
 interface IconProps {

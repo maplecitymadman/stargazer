@@ -127,7 +127,7 @@ export default function Navigation({
               <StargazerLogo size="sm" />
             </div>
             <div className="text-[10px] text-[#a1a1aa] uppercase tracking-[0.2em] font-medium mb-4 pl-1 opacity-70">
-              Network Operations
+              K8S CLUSTER OBSERVATORY
             </div>
             <div className="space-y-3">
               <ContextSelector onContextChange={onContextChange} />
