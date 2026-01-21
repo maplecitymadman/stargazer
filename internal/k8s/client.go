@@ -22,7 +22,7 @@ import (
 
 // Client wraps the Kubernetes client-go with caching and helper methods
 type Client struct {
-	clientset      *kubernetes.Clientset
+	clientset      kubernetes.Interface
 	dynamicClient  dynamic.Interface
 	namespace      string
 	cache          *cache
@@ -389,7 +389,7 @@ func getConfigKubeconfigPath() string {
 }
 
 // GetClientset returns the underlying Kubernetes clientset
-func (c *Client) GetClientset() *kubernetes.Clientset {
+func (c *Client) GetClientset() kubernetes.Interface {
 	return c.clientset
 }
 

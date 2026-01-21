@@ -245,7 +245,7 @@ func TestCleanupOld(t *testing.T) {
 
 	// File 2: Recent, should NOT be deleted
 	recentTime := now.AddDate(0, 0, -1) // 1 day old
-	createFile(recentTime, "")
+	recentFile := createFile(recentTime, "")
 
 	// File 3: Manually named file with old timestamp (fallback to parsing content)
 	// We name it "custom-old-scan" so filename parser fails
@@ -269,5 +269,104 @@ func TestCleanupOld(t *testing.T) {
 	}
 
 	// Check that the recent file is the one remaining
-	// (Check by parsing or reading - rely on logic that it should be there)
+	if _, err := os.Stat(filepath.Join(tmpDir, recentFile)); os.IsNotExist(err) {
+		t.Error("Recent file was deleted")
+	}
+}
+
+func TestDeleteScanResult(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "stargazer-storage-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	storage, err := NewStorage(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := storage.SaveScanResult("default", []k8s.Issue{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete
+	err = storage.DeleteScanResult(result.ID)
+	if err != nil {
+		t.Fatalf("Failed to delete scan result: %v", err)
+	}
+
+	// Verify it's gone
+	_, err = storage.GetScanResult(result.ID)
+	if err == nil {
+		t.Error("Scan result still exists after deletion")
+	}
+
+	// Delete non-existent
+	err = storage.DeleteScanResult("nonexistent")
+	if err == nil {
+		t.Error("Expected error when deleting non-existent result")
+	}
+}
+
+func TestGetStats(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "stargazer-storage-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	storage, err := NewStorage(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Stats for empty storage
+	stats, err := storage.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats failed: %v", err)
+	}
+	if stats["total_scans"].(int) != 0 {
+		t.Errorf("Expected 0 scans, got %v", stats["total_scans"])
+	}
+
+	// Add a result
+	time.Sleep(1 * time.Second)
+	_, err = storage.SaveScanResult("default", []k8s.Issue{{ID: "1", Priority: k8s.PriorityCritical}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stats, err = storage.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats failed: %v", err)
+	}
+	if stats["total_scans"].(int) != 1 {
+		t.Errorf("Expected 1 scan, got %v", stats["total_scans"])
+	}
+	if stats["total_issues"].(int) != 1 {
+		t.Errorf("Expected 1 issue, got %v", stats["total_issues"])
+	}
+	if _, ok := stats["oldest_scan"]; !ok {
+		t.Error("Expected oldest_scan in stats")
+	}
+}
+
+func TestStorageErrorCases(t *testing.T) {
+	// Test NewStorage with invalid path
+	_, err := NewStorage("/proc/invalid") // Path that should fail
+	if err == nil {
+		t.Error("Expected error for invalid storage path")
+	}
+
+	tmpDir, _ := os.MkdirTemp("", "stargazer-storage-test-*")
+	defer os.RemoveAll(tmpDir)
+	storage, _ := NewStorage(tmpDir)
+
+	// Test CleanupOld with non-positive days
+	_, err = storage.CleanupOld(0)
+	if err == nil {
+		t.Error("Expected error for CleanupOld with 0 days")
+	}
 }
