@@ -53,6 +53,6 @@ jobs:
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.GH_PAT }}
-          repository: maplecitymadman/talos-deploy
+          repository: maplecitymadman/talos-gitops
           event-type: update-image
           client-payload: '{"image_tag": "${{ steps.meta.outputs.version }}"}'
