@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import RecommendationsPanel from './RecommendationsPanel';
+import CostOptimizationPage from './CostOptimizationPage';
 import { Icon } from './SpaceshipIcons';
 
 interface CompliancePageProps {
@@ -15,13 +16,6 @@ export default function CompliancePage({ subsection, namespace }: CompliancePage
   const [score, setScore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (subsection) {
-      setActiveTab(subsection);
-    }
-    loadData();
-  }, [subsection, namespace]);
-
   const loadData = async () => {
     try {
       const scoreData = await apiClient.getComplianceScore(namespace);
@@ -33,9 +27,17 @@ export default function CompliancePage({ subsection, namespace }: CompliancePage
     }
   };
 
+  useEffect(() => {
+    if (subsection) {
+      setActiveTab(subsection);
+    }
+    loadData();
+  }, [subsection, namespace]);
+
   const tabs = [
     { id: 'score', label: 'Compliance Score', icon: 'scan' as const },
     { id: 'recommendations', label: 'Recommendations', icon: 'scan' as const },
+    { id: 'cost', label: 'Cost Optimization', icon: 'scan' as const },
   ];
 
   if (loading) {
@@ -74,6 +76,7 @@ export default function CompliancePage({ subsection, namespace }: CompliancePage
       <div>
         {activeTab === 'score' && <ComplianceScore score={score} namespace={namespace} />}
         {activeTab === 'recommendations' && <RecommendationsPanel namespace={namespace} />}
+        {activeTab === 'cost' && <CostOptimizationPage namespace={namespace} />}
       </div>
     </div>
   );

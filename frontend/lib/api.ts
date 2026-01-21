@@ -247,36 +247,6 @@ export const apiClient = {
     return response.data;
   },
 
-  async getAllResources(namespace?: string): Promise<any> {
-    // Stub - endpoint removed
-    return { resources: {}, namespace: namespace || "all" };
-  },
-
-  async getIssueRecommendations(issueId: string): Promise<any> {
-    const response = await api.get(`/api/issues/${issueId}/recommendations`);
-    return response.data;
-  },
-
-  async executeFix(issueId: string, command: string): Promise<any> {
-    try {
-      const response = await api.post(`/api/issues/${issueId}/execute-fix`, {
-        command,
-      });
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 403) {
-        throw new Error(
-          "Command not approved. Only AI-recommended commands can be executed.",
-        );
-      }
-      throw error;
-    }
-  },
-
-  async getProgressiveHelp(issueId: string): Promise<any> {
-    const response = await api.get(`/api/issues/${issueId}/progressive-help`);
-    return response.data;
-  },
 
   async getServiceTopology(namespace?: string): Promise<any> {
     const response = await api.get("/api/topology", {
@@ -320,14 +290,6 @@ export const apiClient = {
     return response.data;
   },
 
-  async getResourceYaml(
-    resourceType: string,
-    resourceName: string,
-    namespace?: string,
-  ): Promise<any> {
-    // Stub - endpoint removed
-    return { yaml: "", error: "Endpoint removed" };
-  },
 
   async getContexts(): Promise<any> {
     const response = await api.get("/api/contexts");

@@ -55,7 +55,14 @@ func TestGetComplianceScore(t *testing.T) {
 	// Poor compliance topology
 	topology := &TopologyData{
 		Services: map[string]ServiceInfo{
-			"default/app": {Name: "app", Namespace: "default"},
+			"default/app": {
+				Name:      "app",
+				Namespace: "default",
+				CostStats: &CostStats{
+					IsZombie: true, // Fail cost-001
+				},
+				DriftStatus: "OutOfSync", // Fail drift-001
+			},
 		},
 		NetworkPolicies: []NetworkPolicyInfo{},
 	}

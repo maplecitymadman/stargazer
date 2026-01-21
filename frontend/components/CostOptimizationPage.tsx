@@ -17,10 +17,6 @@ export default function CostOptimizationPage({ namespace }: { namespace?: string
   const [zombies, setZombies] = useState<ZombieService[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, [namespace]);
-
   const loadData = async () => {
     try {
       setLoading(true);
@@ -51,6 +47,10 @@ export default function CostOptimizationPage({ namespace }: { namespace?: string
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, [namespace]);
 
   if (loading) {
     return (

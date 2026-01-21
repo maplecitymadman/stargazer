@@ -194,6 +194,10 @@ func (s *Server) setupRoutes() {
 
 		// Config endpoints (v2 style)
 		api.GET("/config", s.handleGetConfig)
+		api.GET("/config/providers", s.handleGetProvidersConfig)
+		api.POST("/config/providers/:provider/model", s.handleSetProviderModel)
+		api.POST("/config/providers/:provider/enable", s.handleEnableProvider)
+		api.POST("/config/providers/:provider/api-key", s.handleSetProviderApiKey)
 
 		api.GET("/config/kubeconfig/status", s.handleGetKubeconfigStatus)
 		api.POST("/config/kubeconfig", s.handleSetKubeconfig)

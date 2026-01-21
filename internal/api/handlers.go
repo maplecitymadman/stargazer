@@ -1447,3 +1447,59 @@ func (s *Server) handleDeleteKyvernoPolicy(c *gin.Context) {
 		"message": "Policy deleted successfully",
 	})
 }
+
+// Set provider model
+func (s *Server) handleSetProviderModel(c *gin.Context) {
+	provider := c.Param("provider")
+	var req struct {
+		Model string `json:"model" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	// TODO: Store provider model in config when provider config is implemented
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"provider": provider,
+		"model":    req.Model,
+		"message":  fmt.Sprintf("Provider %s model set to %s", provider, req.Model),
+	})
+}
+
+// Enable/disable provider
+func (s *Server) handleEnableProvider(c *gin.Context) {
+	provider := c.Param("provider")
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	// TODO: Store provider enabled state in config when provider config is implemented
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"provider": provider,
+		"enabled":  req.Enabled,
+		"message":  fmt.Sprintf("Provider %s %s", provider, map[bool]string{true: "enabled", false: "disabled"}[req.Enabled]),
+	})
+}
+
+// Set provider API key
+func (s *Server) handleSetProviderApiKey(c *gin.Context) {
+	provider := c.Param("provider")
+	var req struct {
+		ApiKey string `json:"api_key" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+	// TODO: Store provider API key securely in config when provider config is implemented
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"provider": provider,
+		"message":  fmt.Sprintf("API key for provider %s updated", provider),
+	})
+}

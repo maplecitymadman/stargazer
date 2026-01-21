@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient, ClusterHealth } from '@/lib/api';
 import HealthMetrics from '@/components/HealthMetrics';
 import Dashboard from '@/components/Dashboard';
@@ -18,7 +18,6 @@ import StargazerLogo from '@/components/StargazerLogo';
 import Settings from '@/components/Settings';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Icon } from '@/components/SpaceshipIcons';
-import OverviewPage from '@/components/OverviewPages';
 import toast from 'react-hot-toast';
 
 export default function Home() {
@@ -27,6 +26,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const [currentSection, setCurrentSection] = useState<string>('dashboard');
   const [currentSubsection, setCurrentSubsection] = useState<string | undefined>(undefined);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -65,8 +65,8 @@ export default function Home() {
     return () => {
       window.removeEventListener('theme-change', handleThemeChange as EventListener);
       cleanupAuto();
-      if (ws) {
-        ws.close();
+      if (wsRef.current) {
+        wsRef.current.close();
       }
     };
   }, []);
@@ -82,17 +82,6 @@ export default function Home() {
       root.classList.add(theme);
     }
   };
-
-  useEffect(() => {
-    // Only use auto-refresh if WebSocket is not connected
-    // WebSocket provides real-time updates, so we don't need polling
-    if (autoRefresh && !ws) {
-      const interval = setInterval(() => {
-        loadData();
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, ws, namespace]); // Include namespace in dependencies
 
   // Track if initial load is complete
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -116,8 +105,19 @@ export default function Home() {
       }
       // Don't clear existing data on error
     }
-  }, [namespace]); // loadData depends on namespace
+  }, [namespace]);
 
+  // Auto-refresh polling (only if WebSocket is not connected)
+  useEffect(() => {
+    // Only use auto-refresh if WebSocket is not connected
+    // WebSocket provides real-time updates, so we don't need polling
+    if (autoRefresh && !ws) {
+      const interval = setInterval(() => {
+        loadData();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, ws, loadData]);
 
   // Reload data when switching sections (but not on initial load)
   useEffect(() => {
@@ -125,7 +125,7 @@ export default function Home() {
     if (initialLoadComplete && currentSection && !loading) {
       loadData();
     }
-  }, [currentSection, initialLoadComplete, loading, loadData]); // Include all dependencies
+  }, [currentSection, initialLoadComplete, loading, loadData]);
 
   const loadInitialData = async (preserveNamespace: boolean = false) => {
     try {
@@ -192,6 +192,7 @@ export default function Home() {
 
       websocket.onopen = () => {
         setWs(websocket);
+        wsRef.current = websocket;
         // Reset attempt counter on successful connection
         if (attempt > 1) {
           console.log('[WebSocket] Reconnected successfully');
@@ -214,10 +215,12 @@ export default function Home() {
 
       websocket.onerror = () => {
         setWs(null);
+        wsRef.current = null;
       };
 
       websocket.onclose = () => {
         setWs(null);
+        wsRef.current = null;
         // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
         const maxDelay = 30000;
         const baseDelay = 1000;
@@ -234,6 +237,7 @@ export default function Home() {
     } catch (error) {
       // Silently handle WebSocket setup errors
       setWs(null);
+      wsRef.current = null;
       const maxDelay = 30000;
       const baseDelay = 1000;
       const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
@@ -264,14 +268,14 @@ export default function Home() {
     const base = [{ label: 'DASHBOARD', onClick: () => handleSectionChange('dashboard') }];
 
     switch (currentSection) {
-      case 'network-graph':
-        return [...base, { label: 'NETWORK GRAPH' }];
-      case 'traffic-monitor':
-        return [...base, { label: 'TRAFFIC MONITOR' }];
-      case 'policies':
-        return [...base, { label: 'POLICIES' }];
-      case 'resources':
-        return [...base, { label: 'RESOURCES' }];
+      case 'traffic-analysis':
+        return [...base, { label: 'TRAFFIC ANALYSIS' }];
+      case 'network-policies':
+        return [...base, { label: 'NETWORK POLICIES' }];
+      case 'compliance':
+        return [...base, { label: 'COMPLIANCE' }];
+      case 'troubleshooting':
+        return [...base, { label: 'TROUBLESHOOTING' }];
       case 'events':
         return [...base, { label: 'EVENTS' }];
       case 'settings':
@@ -324,10 +328,10 @@ export default function Home() {
                 <Breadcrumbs items={getBreadcrumbs()} />
                 <h1 className="text-xl font-semibold text-[#e4e4e7] tracking-tight mt-1">
                   {currentSection === 'dashboard' && 'Dashboard'}
-                  {currentSection === 'network-graph' && 'Network Graph'}
-                  {currentSection === 'traffic-monitor' && 'Traffic Monitor'}
-                  {currentSection === 'policies' && 'Policies'}
-                  {currentSection === 'resources' && 'Resources'}
+                  {currentSection === 'traffic-analysis' && 'Traffic Analysis'}
+                  {currentSection === 'network-policies' && 'Network Policies'}
+                  {currentSection === 'compliance' && 'Compliance'}
+                  {currentSection === 'troubleshooting' && 'Troubleshooting'}
                   {currentSection === 'events' && 'Events'}
                   {currentSection === 'settings' && 'Settings'}
                 </h1>
@@ -437,25 +441,20 @@ export default function Home() {
             </>
           )}
 
-          {currentSection === 'traffic-monitor' && (
-            <TrafficAnalysisPage namespace={namespace} />
+          {currentSection === 'traffic-analysis' && (
+            <TrafficAnalysisPage subsection={currentSubsection} namespace={namespace} />
           )}
 
-          {currentSection === 'policies' && (
-            <NetworkPoliciesPage namespace={namespace} />
+          {currentSection === 'network-policies' && (
+            <NetworkPoliciesPage subsection={currentSubsection} namespace={namespace} />
           )}
 
-          {currentSection === 'resources' && (
-            <CostOptimizationPage namespace={namespace} />
+          {currentSection === 'compliance' && (
+            <CompliancePage subsection={currentSubsection} namespace={namespace} />
           )}
 
-          {currentSection === 'network-graph' && (
-            <>
-              <ServiceTopology namespace={namespace} />
-              <div className="mt-6">
-                <PathTracer namespace={namespace} />
-              </div>
-            </>
+          {currentSection === 'troubleshooting' && (
+            <TroubleshootingPage subsection={currentSubsection} namespace={namespace} />
           )}
 
           {currentSection === 'events' && (
