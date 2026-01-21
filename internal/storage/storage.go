@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/maplecitymadman/stargazer/internal/k8s"
@@ -27,12 +29,12 @@ type ScanResult struct {
 
 // Summary provides a summary of the scan
 type Summary struct {
-	TotalIssues     int `json:"total_issues"`
-	CriticalCount   int `json:"critical_count"`
-	WarningCount    int `json:"warning_count"`
-	InfoCount       int `json:"info_count"`
-	PodsScanned     int `json:"pods_scanned"`
-	NodesScanned    int `json:"nodes_scanned"`
+	TotalIssues   int `json:"total_issues"`
+	CriticalCount int `json:"critical_count"`
+	WarningCount  int `json:"warning_count"`
+	InfoCount     int `json:"info_count"`
+	PodsScanned   int `json:"pods_scanned"`
+	NodesScanned  int `json:"nodes_scanned"`
 }
 
 // NewStorage creates a new storage instance
@@ -177,6 +179,19 @@ func (s *Storage) CleanupOld(days int) (int, error) {
 		}
 
 		path := filepath.Join(s.basePath, file.Name())
+
+		// Try to parse timestamp from filename first to avoid IO
+		ts, err := parseTimestampFromFilename(file.Name())
+		if err == nil {
+			if ts.Before(cutoff) {
+				if err := os.Remove(path); err == nil {
+					deleted++
+				}
+			}
+			continue
+		}
+
+		// Fallback to reading file if filename parse fails
 		data, err := os.ReadFile(path)
 		if err != nil {
 			continue
@@ -196,6 +211,23 @@ func (s *Storage) CleanupOld(days int) (int, error) {
 	}
 
 	return deleted, nil
+}
+
+// parseTimestampFromFilename extracts the timestamp from a filename like "scan-1234567890.json"
+func parseTimestampFromFilename(filename string) (time.Time, error) {
+	// Expected format: scan-<unix-timestamp>.json
+	name := strings.TrimSuffix(filename, ".json")
+	if !strings.HasPrefix(name, "scan-") {
+		return time.Time{}, fmt.Errorf("invalid filename format")
+	}
+
+	tsStr := strings.TrimPrefix(name, "scan-")
+	tsInt, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return time.Unix(tsInt, 0), nil
 }
 
 // GetStats returns storage statistics

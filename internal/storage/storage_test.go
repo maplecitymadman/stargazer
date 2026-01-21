@@ -1,7 +1,10 @@
 package storage
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -183,10 +186,6 @@ func TestListScanResults(t *testing.T) {
 	}
 }
 
-// TestCleanupOldResults is skipped - cleanup functionality not yet implemented
-// func TestCleanupOldResults(t *testing.T) { ... }
-
-
 func TestGetNonExistentScanResult(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "stargazer-storage-test-*")
 	if err != nil {
@@ -203,4 +202,72 @@ func TestGetNonExistentScanResult(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when getting non-existent result")
 	}
+}
+
+func TestCleanupOld(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "stargazer-cleanup-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	storage, err := NewStorage(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Helper to create a file with specific timestamp
+	createFile := func(timestamp time.Time, nameOverride string) string {
+		id := fmt.Sprintf("scan-%d", timestamp.Unix())
+		if nameOverride != "" {
+			id = nameOverride
+		}
+
+		result := &ScanResult{
+			ID:        id,
+			Timestamp: timestamp,
+			Namespace: "default",
+			Issues:    []k8s.Issue{},
+		}
+
+		filename := fmt.Sprintf("%s.json", id)
+		path := filepath.Join(tmpDir, filename)
+		data, _ := json.Marshal(result)
+		os.WriteFile(path, data, 0644)
+		return filename
+	}
+
+	now := time.Now()
+
+	// File 1: Old enough to be deleted (using filename)
+	oldTime := now.AddDate(0, 0, -10) // 10 days old
+	createFile(oldTime, "")
+
+	// File 2: Recent, should NOT be deleted
+	recentTime := now.AddDate(0, 0, -1) // 1 day old
+	createFile(recentTime, "")
+
+	// File 3: Manually named file with old timestamp (fallback to parsing content)
+	// We name it "custom-old-scan" so filename parser fails
+	createFile(oldTime, "custom-old-scan")
+
+	// Set retention directly to 5 days
+	days := 5
+	deleted, err := storage.CleanupOld(days)
+	if err != nil {
+		t.Fatalf("CleanupOld failed: %v", err)
+	}
+
+	if deleted != 2 {
+		t.Errorf("Expected 2 files deleted, got %d", deleted)
+	}
+
+	// Verify what remains
+	files, _ := os.ReadDir(tmpDir)
+	if len(files) != 1 {
+		t.Errorf("Expected 1 file remaining, got %d", len(files))
+	}
+
+	// Check that the recent file is the one remaining
+	// (Check by parsing or reading - rely on logic that it should be there)
 }
