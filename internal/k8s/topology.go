@@ -379,9 +379,10 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Fetch services
+	var podLabels map[string]map[string]string
 	g.Go(func() error {
 		var err error
-		services, err = c.getTopologyServices(ctx, ns, infra)
+		services, podLabels, err = c.getTopologyServices(ctx, ns, infra)
 		return err
 	})
 
@@ -466,9 +467,25 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 				// Convert map to selector (np.Policy is populated in getNetworkPolicies)
 				if np.Policy != nil {
 					npSelector, err := metav1.LabelSelectorAsSelector(&np.Policy.Spec.PodSelector)
-					if err == nil && !npSelector.Empty() {
-						if npSelector.Matches(labels.Set(svc.Labels)) { // Use svc.Labels (from ServiceInfo) which we populated
-							hasPolicy = true
+					if err == nil {
+						// Check if policy selects any of the service's pods
+						// Precise check using actual pod labels
+						for _, podName := range svc.Pods {
+							if pLabels, ok := podLabels[podName]; ok {
+								if npSelector.Matches(labels.Set(pLabels)) {
+									hasPolicy = true
+									break
+								}
+							}
+						}
+						// Fallback: check service selector if no pods found (e.g. scaled to 0)
+						if !hasPolicy && len(svc.Pods) == 0 {
+							if npSelector.Matches(labels.Set(svc.Labels)) {
+								hasPolicy = true
+								break
+							}
+						}
+						if hasPolicy {
 							break
 						}
 					}
@@ -499,7 +516,7 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 	c.mapServiceToDrift(services, driftData)
 
 	// Build connectivity map
-	connectivity := c.buildConnectivityMap(ctx, services, ingress, egress, networkPolicies, ciliumPolicies, istioPolicies, infra)
+	connectivity := c.buildConnectivityMap(ctx, services, ingress, egress, networkPolicies, ciliumPolicies, istioPolicies, infra, podLabels)
 
 	// Update infrastructure counts
 	infra.NetworkPolicies = len(networkPolicies)
@@ -680,9 +697,10 @@ func (c *Client) detectInfrastructure(ctx context.Context) (InfrastructureInfo, 
 	return infra, nil
 }
 
-// getTopologyServices retrieves services with topology metadata
-func (c *Client) getTopologyServices(ctx context.Context, namespace string, infra InfrastructureInfo) (map[string]ServiceInfo, error) {
+// getTopologyServices retrieves services with topology metadata and a map of pod labels
+func (c *Client) getTopologyServices(ctx context.Context, namespace string, infra InfrastructureInfo) (map[string]ServiceInfo, map[string]map[string]string, error) {
 	services := make(map[string]ServiceInfo)
+	podLabels := make(map[string]map[string]string)
 
 	// Get all services
 	var serviceList *corev1.ServiceList
@@ -693,7 +711,7 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		serviceList, err = c.clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{})
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Get all pods for service mesh detection
@@ -704,7 +722,7 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		podList, err = c.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Optimization: Index pods by namespace to avoid O(N*M) complexity
@@ -712,6 +730,7 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 	for i := range podList.Items {
 		pod := &podList.Items[i]
 		podsByNamespace[pod.Namespace] = append(podsByNamespace[pod.Namespace], pod)
+		podLabels[pod.Name] = pod.Labels
 	}
 
 	// Fetch cost stats (zombie services)
@@ -843,7 +862,7 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 					cpu := container.Resources.Requests.Cpu().MilliValue()
 					mem := container.Resources.Requests.Memory().Value() / (1024 * 1024)
 					totalCPU += cpu
-					totalMemory += totalMemory + mem
+					totalMemory += mem
 				}
 			}
 		}
@@ -868,7 +887,7 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		services[key] = serviceInfo
 	}
 
-	return services, nil
+	return services, podLabels, nil
 }
 
 // getNetworkPolicies retrieves Kubernetes NetworkPolicies
@@ -1079,7 +1098,7 @@ func (c *Client) getKyvernoPolicies(ctx context.Context, namespace string) ([]Ky
 }
 
 // buildConnectivityMap builds the connectivity information between services (includes ingress/egress)
-func (c *Client) buildConnectivityMap(ctx context.Context, services map[string]ServiceInfo, ingress IngressInfo, egress EgressInfo, networkPolicies []NetworkPolicyInfo, ciliumPolicies []CiliumNetworkPolicyInfo, istioPolicies []IstioPolicyInfo, infra InfrastructureInfo) map[string]ConnectivityInfo {
+func (c *Client) buildConnectivityMap(ctx context.Context, services map[string]ServiceInfo, ingress IngressInfo, egress EgressInfo, networkPolicies []NetworkPolicyInfo, ciliumPolicies []CiliumNetworkPolicyInfo, istioPolicies []IstioPolicyInfo, infra InfrastructureInfo, podLabels map[string]map[string]string) map[string]ConnectivityInfo {
 	connectivity := make(map[string]ConnectivityInfo)
 
 	for serviceKey, service := range services {
@@ -1142,8 +1161,38 @@ func (c *Client) buildConnectivityMap(ctx context.Context, services map[string]S
 						// If policy has rules, check if they might allow this connection
 						// This is a simplified check - full evaluation would require pod selector matching
 						if hasIngressType && len(policy.Spec.Ingress) > 0 {
-							// Policy has allow rules, so connection might be allowed
-							// In a full implementation, we'd check pod selectors and namespace selectors
+							// Check if any rule allows this traffic
+							for _, rule := range policy.Spec.Ingress {
+								// Check each "From" peer
+								for _, peer := range rule.From {
+									// 1. Check PodSelector (in same namespace)
+									if peer.PodSelector != nil {
+										ps, err := metav1.LabelSelectorAsSelector(peer.PodSelector)
+										if err == nil {
+											// Check if any pod of the source service matches
+											matches := false
+											for _, podName := range service.Pods {
+												if pLabels, ok := podLabels[podName]; ok {
+													if ps.Matches(labels.Set(pLabels)) {
+														matches = true
+														break
+													}
+												}
+											}
+											if matches {
+												// Potentially allowed (if ports also match, which we skip for now)
+												blockedByPolicy = false
+											}
+										}
+									}
+									// 2. IPBlock (skip for service-to-service)
+									// 3. NamespaceSelector (skip - requires NS labels)
+								}
+								// If From is empty, it allows all sources
+								if len(rule.From) == 0 {
+									blockedByPolicy = false
+								}
+							}
 						}
 					} else {
 						// Policy object not available, use conservative approach

@@ -202,7 +202,7 @@ func (s *Server) handleClusterHealth(c *gin.Context) {
 	}
 
 	overallHealth := "healthy"
-	if errorEvents > 0 {
+	if errorEvents > 0 || warningEvents > 0 {
 		overallHealth = "degraded"
 	}
 
