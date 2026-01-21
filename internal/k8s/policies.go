@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -366,6 +367,36 @@ func (pb *PolicyBuilder) ApplyKyvernoPolicy(ctx context.Context, yamlContent str
 	}
 
 	return err
+}
+
+// ApplyNetworkPolicy applies a standard Kubernetes NetworkPolicy to the cluster
+func (pb *PolicyBuilder) ApplyNetworkPolicy(ctx context.Context, yamlContent string, namespace string) error {
+	// Parse YAML
+	var policy networkingv1.NetworkPolicy
+	if err := yaml.Unmarshal([]byte(yamlContent), &policy); err != nil {
+		return fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	// Determine namespace
+	ns := namespace
+	if ns == "" {
+		ns = policy.Namespace
+	}
+	if ns == "" {
+		ns = "default"
+	}
+
+	// Apply the policy
+	_, err := pb.clientset.NetworkingV1().NetworkPolicies(ns).Create(ctx, &policy, metav1.CreateOptions{})
+	if err != nil {
+		// Try to update if already exists
+		if strings.Contains(err.Error(), "already exists") {
+			_, err = pb.clientset.NetworkingV1().NetworkPolicies(ns).Update(ctx, &policy, metav1.UpdateOptions{})
+		}
+		return err
+	}
+
+	return nil
 }
 
 // DeleteCiliumNetworkPolicy deletes a Cilium Network Policy

@@ -613,6 +613,98 @@ var BestPractices = []NetworkingBestPractice{
 			return len(recommendations) == 0, recommendations
 		},
 	},
+	{
+		ID:          "rbac-001",
+		Name:        "Minimize Over-Privileged RBAC Bindings",
+		Description: "ServiceAccounts should not be bound to cluster-admin or other highly privileged roles unless strictly necessary",
+		Category:    "security",
+		Severity:    "critical",
+		Check: func(ctx context.Context, topology *TopologyData) (bool, []Recommendation) {
+			var recommendations []Recommendation
+
+			highPrivRoles := map[string]bool{
+				"cluster-admin": true,
+				"admin":         true,
+				"edit":          true,
+			}
+
+			// Check ClusterRoleBindings
+			for _, crb := range topology.RBAC.ClusterRoleBindings {
+				if highPrivRoles[strings.ToLower(crb.RoleName)] {
+					for _, sub := range crb.Subjects {
+						if sub.Kind == "ServiceAccount" {
+							// Skip system service accounts
+							if sub.Namespace == "kube-system" || strings.HasPrefix(sub.Namespace, "istio-") {
+								continue
+							}
+
+							recommendations = append(recommendations, Recommendation{
+								ID:          fmt.Sprintf("rbac-001-%s", crb.Name),
+								Title:       fmt.Sprintf("ServiceAccount %s bound to %s", sub.Name, crb.RoleName),
+								Description: fmt.Sprintf("ServiceAccount %s/%s has %s permissions via ClusterRoleBinding %s. This is an extremely high risk if the pod is compromised.", sub.Namespace, sub.Name, crb.RoleName, crb.Name),
+								Category:    "security",
+								Severity:    "critical",
+								Namespace:   sub.Namespace,
+								Fix: FixRecommendation{
+									Type: "rbac",
+									ManualSteps: []string{
+										"1. Auditing the permissions required by the application",
+										"2. Create a specific Role or ClusterRole with only necessary verbs/resources",
+										"3. Update the RoleBinding/ClusterRoleBinding to use the new role",
+										"4. Delete the binding to the overly permissive role",
+									},
+								},
+								Impact: "Reduces blast radius in case of a pod compromise by enforcing the principle of least privilege.",
+							})
+						}
+					}
+				}
+			}
+
+			return len(recommendations) == 0, recommendations
+		},
+	},
+	{
+		ID:          "pss-001",
+		Name:        "Enforce Restricted Pod Security Standards",
+		Description: "Pods should follow the restricted Pod Security Standard profile to minimize attack surface",
+		Category:    "security",
+		Severity:    "high",
+		Check: func(ctx context.Context, topology *TopologyData) (bool, []Recommendation) {
+			var recommendations []Recommendation
+
+			for serviceKey, service := range topology.Services {
+				if service.Namespace == "kube-system" {
+					continue
+				}
+
+				if service.PodSecurity == "privileged" {
+					recommendations = append(recommendations, Recommendation{
+						ID:          fmt.Sprintf("pss-001-%s", serviceKey),
+						Title:       fmt.Sprintf("Service %s has privileged pods", service.Name),
+						Description: fmt.Sprintf("Service %s/%s is running with Privileged pods or host access (network/pid/ipc). This bypasses many security boundaries.", service.Namespace, service.Name),
+						Category:    "security",
+						Severity:    "high",
+						Service:     serviceKey,
+						Namespace:   service.Namespace,
+						Fix: FixRecommendation{
+							Type: "pod",
+							ManualSteps: []string{
+								"1. Check if the application strictly requires privileged access",
+								"2. Set 'privileged: false' in securityContext",
+								"3. Set 'allowPrivilegeEscalation: false'",
+								"4. Remove hostNetwork, hostPID, and hostIPC if not needed",
+								"5. Apply Pod Security Admission (PSA) to the namespace",
+							},
+						},
+						Impact: "Prevents pods from easily escaping to the host node or accessing sensitive host resources.",
+					})
+				}
+			}
+
+			return len(recommendations) == 0, recommendations
+		},
+	},
 }
 
 // Helper function to generate K8s NetworkPolicy template based on actual connections

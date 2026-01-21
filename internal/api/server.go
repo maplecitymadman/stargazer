@@ -157,8 +157,8 @@ func (s *Server) setupRoutes() {
 		api.GET("/namespaces/:namespace/events", s.handleGetEvents)
 		api.GET("/nodes", s.handleGetNodes)
 
-		// Troubleshooting (Phase 6)
-		api.POST("/troubleshoot", s.handleTroubleshoot)
+		// Troubleshooting
+		api.GET("/troubleshoot", s.handleTroubleshoot)
 
 		// Topology (Phase 2 deferred) - expensive endpoints, stricter rate limiting
 		topologyGroup := api.Group("/topology")
@@ -179,6 +179,7 @@ func (s *Server) setupRoutes() {
 		}
 
 		// Policy building and management
+		api.POST("/policies/network/apply", s.handleApplyNetworkPolicy)
 		api.POST("/policies/cilium/build", s.handleBuildCiliumPolicy)
 		api.POST("/policies/cilium/apply", s.handleApplyCiliumPolicy)
 		api.POST("/policies/cilium/export", s.handleExportCiliumPolicy)

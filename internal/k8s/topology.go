@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,6 +46,7 @@ type TopologyData struct {
 	KyvernoPolicies []KyvernoPolicyInfo         `json:"kyverno_policies"`
 	Infrastructure  InfrastructureInfo          `json:"infrastructure"`
 	Summary         TopologySummary             `json:"summary"`
+	RBAC            RBACData                    `json:"rbac,omitempty"`
 	HubbleEnabled   bool                        `json:"hubble_enabled,omitempty"`
 }
 
@@ -62,6 +64,7 @@ type ServiceInfo struct {
 	HasServiceMesh  bool     `json:"has_service_mesh"`
 	ServiceMeshType string   `json:"service_mesh_type,omitempty"` // "istio", "cilium", or ""
 	HasCiliumProxy  bool     `json:"has_cilium_proxy"`
+	PodSecurity     string   `json:"pod_security,omitempty"` // "privileged", "baseline", "restricted"
 }
 
 // ConnectivityInfo represents connectivity information for a service
@@ -94,6 +97,35 @@ type NetworkPolicyInfo struct {
 	Type      string                      `json:"type"` // "kubernetes" or "cilium"
 	YAML      string                      `json:"yaml,omitempty"`
 	Policy    *networkingv1.NetworkPolicy `json:"-"` // Internal: actual policy object for evaluation
+}
+
+// RBACData represents Kubernetes RBAC information
+type RBACData struct {
+	RoleBindings        []RoleBindingInfo    `json:"role_bindings"`
+	ClusterRoleBindings []RoleBindingInfo    `json:"cluster_role_bindings"`
+	ServiceAccounts     []ServiceAccountInfo `json:"service_accounts"`
+}
+
+// RoleBindingInfo represents a Kubernetes RoleBinding or ClusterRoleBinding
+type RoleBindingInfo struct {
+	Name      string        `json:"name"`
+	Namespace string        `json:"namespace,omitempty"`
+	RoleName  string        `json:"role_name"`
+	RoleKind  string        `json:"role_kind"` // "Role" or "ClusterRole"
+	Subjects  []SubjectInfo `json:"subjects"`
+}
+
+// SubjectInfo represents an RBAC subject
+type SubjectInfo struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// ServiceAccountInfo represents a Kubernetes ServiceAccount
+type ServiceAccountInfo struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 // CiliumNetworkPolicyInfo represents a Cilium NetworkPolicy
@@ -289,68 +321,110 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 		ns = ""
 	}
 
-	// Detect infrastructure
+	// Check cache first
+	cacheKey := fmt.Sprintf("topology:%s", ns)
+	if data, ok := c.cache.get(cacheKey); ok {
+		if topology, ok := data.(*TopologyData); ok {
+			return topology, nil
+		}
+	}
+
+	// Detect infrastructure FIRST (needed for service list)
 	infra, err := c.detectInfrastructure(ctx)
 	if err != nil {
-		// Log but don't fail - continue with defaults
 		fmt.Printf("Warning: Failed to detect infrastructure: %v\n", err)
 		infra = InfrastructureInfo{}
 	}
 
-	// Get services
-	services, err := c.getTopologyServices(ctx, ns, infra)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get services: %w", err)
-	}
+	var (
+		services        map[string]ServiceInfo
+		networkPolicies []NetworkPolicyInfo
+		ciliumPolicies  []CiliumNetworkPolicyInfo
+		istioPolicies   []IstioPolicyInfo
+		kyvernoPolicies []KyvernoPolicyInfo
+		rbacData        RBACData
+	)
 
-	// Get network policies FIRST (needed for ingress/egress evaluation)
-	networkPolicies, err := c.getNetworkPolicies(ctx, ns)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get network policies: %w", err)
-	}
+	g, ctx := errgroup.WithContext(ctx)
 
-	// Get Cilium policies if Cilium is enabled
-	var ciliumPolicies []CiliumNetworkPolicyInfo
+	// Fetch services
+	g.Go(func() error {
+		var err error
+		services, err = c.getTopologyServices(ctx, ns, infra)
+		return err
+	})
+
+	// Fetch network policies
+	g.Go(func() error {
+		var err error
+		networkPolicies, err = c.getNetworkPolicies(ctx, ns)
+		return err
+	})
+
+	// Fetch Cilium policies if Cilium is enabled
 	if infra.CiliumEnabled {
-		ciliumPolicies, err = c.getCiliumPolicies(ctx, ns)
-		if err != nil {
-			// Log but continue
-			fmt.Printf("Warning: Failed to get Cilium policies: %v\n", err)
-		}
+		g.Go(func() error {
+			var err error
+			ciliumPolicies, err = c.getCiliumPolicies(ctx, ns)
+			if err != nil {
+				fmt.Printf("Warning: Failed to get Cilium policies: %v\n", err)
+				return nil // Don't fail the whole topology
+			}
+			return nil
+		})
 	}
 
-	// Get Istio policies if Istio is enabled
-	var istioPolicies []IstioPolicyInfo
+	// Fetch Istio policies if Istio is enabled
 	if infra.IstioEnabled {
-		istioPolicies, err = c.getIstioPolicies(ctx, ns)
-		if err != nil {
-			// Log but continue
-			fmt.Printf("Warning: Failed to get Istio policies: %v\n", err)
-		}
+		g.Go(func() error {
+			var err error
+			istioPolicies, err = c.getIstioPolicies(ctx, ns)
+			if err != nil {
+				fmt.Printf("Warning: Failed to get Istio policies: %v\n", err)
+				return nil
+			}
+			return nil
+		})
 	}
 
-	// Get Kyverno policies if Kyverno is enabled
-	var kyvernoPolicies []KyvernoPolicyInfo
+	// Fetch Kyverno policies if Kyverno is enabled
 	if infra.KyvernoEnabled {
-		kyvernoPolicies, err = c.getKyvernoPolicies(ctx, ns)
-		if err != nil {
-			// Log but continue
-			fmt.Printf("Warning: Failed to get Kyverno policies: %v\n", err)
-		}
+		g.Go(func() error {
+			var err error
+			kyvernoPolicies, err = c.getKyvernoPolicies(ctx, ns)
+			if err != nil {
+				fmt.Printf("Warning: Failed to get Kyverno policies: %v\n", err)
+				return nil // Kyverno is optional
+			}
+			return nil
+		})
 	}
 
-	// Get ingress info (with policies available)
+	// Fetch RBAC data
+	g.Go(func() error {
+		var err error
+		rbacData, err = c.getRBACData(ctx, ns)
+		if err != nil {
+			fmt.Printf("Warning: Failed to get RBAC data: %v\n", err)
+			return nil
+		}
+		return nil
+	})
+
+	// Wait for all fetches to complete
+	if err := g.Wait(); err != nil {
+		return nil, fmt.Errorf("failed to fetch topology data: %w", err)
+	}
+
+	// Get ingress/egress info (depends on fetched data)
 	ingress, err := c.getIngressInfo(ctx, ns, services, infra, networkPolicies, ciliumPolicies, istioPolicies)
 	if err != nil {
-		// Log but continue
 		fmt.Printf("Warning: Failed to get ingress info: %v\n", err)
 		ingress = IngressInfo{}
 	}
 
-	// Get egress info (with policies available)
 	egress, err := c.getEgressInfo(ctx, ns, services, infra, networkPolicies, ciliumPolicies, istioPolicies)
 	if err != nil {
-		// Log but continue
 		fmt.Printf("Warning: Failed to get egress info: %v\n", err)
 		egress = EgressInfo{}
 	}
@@ -358,10 +432,10 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 	// Detect Hubble
 	hubbleEnabled := c.detectHubble(ctx)
 
-	// Build connectivity map (includes ingress/egress)
+	// Build connectivity map
 	connectivity := c.buildConnectivityMap(ctx, services, ingress, egress, networkPolicies, ciliumPolicies, istioPolicies, infra)
 
-	// Update infrastructure counts with actual policy counts
+	// Update infrastructure counts
 	infra.NetworkPolicies = len(networkPolicies)
 	infra.CiliumPolicies = len(ciliumPolicies)
 	infra.IstioPolicies = len(istioPolicies)
@@ -370,7 +444,7 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 	// Calculate summary
 	summary := c.calculateTopologySummary(services, connectivity, infra)
 
-	return &TopologyData{
+	result := &TopologyData{
 		Namespace:       ns,
 		Services:        services,
 		Connectivity:    connectivity,
@@ -382,8 +456,115 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 		KyvernoPolicies: kyvernoPolicies,
 		Infrastructure:  infra,
 		Summary:         summary,
+		RBAC:            rbacData,
 		HubbleEnabled:   hubbleEnabled,
-	}, nil
+	}
+
+	// Cache the result
+	c.cache.set(cacheKey, result)
+
+	return result, nil
+}
+
+func (c *Client) getRBACData(ctx context.Context, ns string) (RBACData, error) {
+	var rbac RBACData
+
+	// Get RoleBindings
+	rbList, err := c.clientset.RbacV1().RoleBindings(ns).List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, rb := range rbList.Items {
+			info := RoleBindingInfo{
+				Name:      rb.Name,
+				Namespace: rb.Namespace,
+				RoleName:  rb.RoleRef.Name,
+				RoleKind:  rb.RoleRef.Kind,
+			}
+			for _, sub := range rb.Subjects {
+				info.Subjects = append(info.Subjects, SubjectInfo{
+					Kind:      sub.Kind,
+					Name:      sub.Name,
+					Namespace: sub.Namespace,
+				})
+			}
+			rbac.RoleBindings = append(rbac.RoleBindings, info)
+		}
+	}
+
+	// Get ClusterRoleBindings
+	crbList, err := c.clientset.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, crb := range crbList.Items {
+			info := RoleBindingInfo{
+				Name:     crb.Name,
+				RoleName: crb.RoleRef.Name,
+				RoleKind: crb.RoleRef.Kind,
+			}
+			for _, sub := range crb.Subjects {
+				info.Subjects = append(info.Subjects, SubjectInfo{
+					Kind:      sub.Kind,
+					Name:      sub.Name,
+					Namespace: sub.Namespace,
+				})
+			}
+			rbac.ClusterRoleBindings = append(rbac.ClusterRoleBindings, info)
+		}
+	}
+
+	// Get ServiceAccounts
+	saList, err := c.clientset.CoreV1().ServiceAccounts(ns).List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, sa := range saList.Items {
+			rbac.ServiceAccounts = append(rbac.ServiceAccounts, ServiceAccountInfo{
+				Name:      sa.Name,
+				Namespace: sa.Namespace,
+			})
+		}
+	}
+
+	return rbac, nil
+}
+
+func (c *Client) evaluatePodSecurity(pod *corev1.Pod) string {
+	privileged := false
+	hostNetwork := pod.Spec.HostNetwork
+	hostPID := pod.Spec.HostPID
+	hostIPC := pod.Spec.HostIPC
+
+	for _, container := range pod.Spec.Containers {
+		if container.SecurityContext != nil {
+			if container.SecurityContext.Privileged != nil && *container.SecurityContext.Privileged {
+				privileged = true
+			}
+		}
+	}
+
+	if privileged || hostNetwork || hostPID || hostIPC {
+		return "privileged"
+	}
+
+	// Simplified restricted check
+	restricted := true
+	for _, container := range pod.Spec.Containers {
+		sc := container.SecurityContext
+		if sc == nil {
+			restricted = false
+			break
+		}
+		if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+			restricted = false
+			break
+		}
+		if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+			restricted = false
+			break
+		}
+	}
+
+	if restricted {
+		return "restricted"
+	}
+
+	return "baseline"
 }
 
 // detectInfrastructure detects CNI, service mesh, and policy engines
@@ -468,6 +649,14 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 
 	// Build service info
 	for _, svc := range serviceList.Items {
+		serviceInfo := ServiceInfo{
+			Name:        svc.Name,
+			Namespace:   svc.Namespace,
+			Type:        string(svc.Spec.Type),
+			ClusterIP:   svc.Spec.ClusterIP,
+			PodSecurity: "baseline", // Default
+		}
+
 		// Find pods matching service selector
 		selector := labels.Set(svc.Spec.Selector).AsSelector()
 		var matchingPods []string
@@ -496,6 +685,12 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 						if _, ok := pod.Annotations["sidecar.istio.io/status"]; ok {
 							hasIstio = true
 						}
+					}
+
+					// Evaluate Pod Security
+					security := c.evaluatePodSecurity(pod)
+					if serviceInfo.PodSecurity == "" || security == "privileged" {
+						serviceInfo.PodSecurity = security
 					}
 
 					// Check for Cilium proxy (eBPF)
@@ -527,19 +722,13 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 			meshType = "cilium"
 		}
 
-		serviceInfo := ServiceInfo{
-			Name:            svc.Name,
-			Namespace:       svc.Namespace,
-			Type:            string(svc.Spec.Type),
-			ClusterIP:       svc.Spec.ClusterIP,
-			Ports:           portStrings,
-			Pods:            matchingPods,
-			PodCount:        len(matchingPods),
-			HealthyPods:     healthyPods,
-			HasServiceMesh:  hasIstio || hasCiliumProxy,
-			ServiceMeshType: meshType,
-			HasCiliumProxy:  hasCiliumProxy,
-		}
+		serviceInfo.Ports = portStrings
+		serviceInfo.Pods = matchingPods
+		serviceInfo.PodCount = len(matchingPods)
+		serviceInfo.HealthyPods = healthyPods
+		serviceInfo.HasServiceMesh = hasIstio || hasCiliumProxy
+		serviceInfo.ServiceMeshType = meshType
+		serviceInfo.HasCiliumProxy = hasCiliumProxy
 
 		// Try to find associated deployment
 		if len(matchingPods) > 0 {

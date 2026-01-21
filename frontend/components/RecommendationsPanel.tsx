@@ -38,10 +38,30 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
   const [score, setScore] = useState<ComplianceScore | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedRec, setExpandedRec] = useState<string | null>(null);
+  const [applying, setApplying] = useState<string | null>(null);
 
   useEffect(() => {
     loadRecommendations();
   }, [namespace]);
+
+  const handleApply = async (rec: Recommendation) => {
+    if (!rec.fix.template) return;
+
+    try {
+      setApplying(rec.id);
+      if (rec.fix.type === 'networkpolicy') {
+        await apiClient.applyNetworkPolicy(rec.fix.template, rec.namespace);
+      } else if (rec.fix.type === 'cilium') {
+        await apiClient.applyCiliumPolicy(rec.fix.template, rec.namespace);
+      }
+      // Reload to show updated state
+      await loadRecommendations();
+    } catch (error) {
+      console.error('Error applying fix:', error);
+    } finally {
+      setApplying(null);
+    }
+  };
 
   const loadRecommendations = async () => {
     try {
@@ -181,7 +201,9 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
                     key={rec.id}
                     recommendation={rec}
                     expanded={expandedRec === rec.id}
+                    applying={applying === rec.id}
                     onToggle={() => setExpandedRec(expandedRec === rec.id ? null : rec.id)}
+                    onApply={() => handleApply(rec)}
                     getSeverityColor={getSeverityColor}
                     getCategoryIcon={getCategoryIcon}
                     copyToClipboard={copyToClipboard}
@@ -204,7 +226,9 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
                     key={rec.id}
                     recommendation={rec}
                     expanded={expandedRec === rec.id}
+                    applying={applying === rec.id}
                     onToggle={() => setExpandedRec(expandedRec === rec.id ? null : rec.id)}
+                    onApply={() => handleApply(rec)}
                     getSeverityColor={getSeverityColor}
                     getCategoryIcon={getCategoryIcon}
                     copyToClipboard={copyToClipboard}
@@ -227,7 +251,9 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
                     key={rec.id}
                     recommendation={rec}
                     expanded={expandedRec === rec.id}
+                    applying={applying === rec.id}
                     onToggle={() => setExpandedRec(expandedRec === rec.id ? null : rec.id)}
+                    onApply={() => handleApply(rec)}
                     getSeverityColor={getSeverityColor}
                     getCategoryIcon={getCategoryIcon}
                     copyToClipboard={copyToClipboard}
@@ -250,7 +276,9 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
                     key={rec.id}
                     recommendation={rec}
                     expanded={expandedRec === rec.id}
+                    applying={applying === rec.id}
                     onToggle={() => setExpandedRec(expandedRec === rec.id ? null : rec.id)}
+                    onApply={() => handleApply(rec)}
                     getSeverityColor={getSeverityColor}
                     getCategoryIcon={getCategoryIcon}
                     copyToClipboard={copyToClipboard}
@@ -268,7 +296,9 @@ export default function RecommendationsPanel({ namespace }: RecommendationsPanel
 interface RecommendationCardProps {
   recommendation: Recommendation;
   expanded: boolean;
+  applying: boolean;
   onToggle: () => void;
+  onApply: () => void;
   getSeverityColor: (severity: string) => string;
   getCategoryIcon: (category: string) => string;
   copyToClipboard: (text: string) => void;
@@ -277,7 +307,9 @@ interface RecommendationCardProps {
 function RecommendationCard({
   recommendation,
   expanded,
+  applying,
   onToggle,
+  onApply,
   getSeverityColor,
   getCategoryIcon,
   copyToClipboard,
@@ -303,12 +335,28 @@ function RecommendationCard({
             <strong>Impact:</strong> {recommendation.impact}
           </p>
         </div>
-        <button
-          onClick={onToggle}
-          className="ml-4 text-[#71717a] hover:text-[#e4e4e7] transition-colors"
-        >
-          <Icon name={expanded ? "close" : "info"} size="sm" />
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={onToggle}
+            className="ml-4 text-[#71717a] hover:text-[#e4e4e7] transition-colors"
+          >
+            <Icon name={expanded ? "close" : "info"} size="sm" />
+          </button>
+
+          {recommendation.fix.template && (
+            <button
+              onClick={onApply}
+              disabled={applying}
+              className={`ml-4 px-3 py-1 text-xs font-semibold rounded transition-all active:scale-95 ${
+                applying
+                  ? 'bg-[#3b82f6]/20 text-[#3b82f6] cursor-wait'
+                  : 'bg-[#3b82f6] text-white hover:bg-[#2563eb] cursor-pointer'
+              }`}
+            >
+              {applying ? 'Applying...' : 'Apply Fix'}
+            </button>
+          )}
+        </div>
       </div>
 
       {expanded && (

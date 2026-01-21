@@ -34,24 +34,14 @@ func (c *Client) TracePath(ctx context.Context,
 	sourceType, sourceService := c.parseEndpoint(source)
 	destType, destService := c.parseEndpoint(destination)
 
-	// Case 1: Ingress → Service → ... → Egress
+	// Case 1: Ingress → ... (Generic ingress)
 	if sourceType == "ingress" {
 		return c.traceFromIngress(ctx, destType, destService, namespace, topology)
-	}
-
-	// Case 2: Service → Service → ... → Egress
-	if sourceType == "service" && destType == "egress" {
-		return c.traceToEgress(ctx, sourceService, namespace, topology)
 	}
 
 	// Case 3: Service → Service
 	if sourceType == "service" && destType == "service" {
 		return c.traceServiceToService(ctx, sourceService, destService, namespace, topology)
-	}
-
-	// Case 4: Ingress → Service
-	if sourceType == "ingress" && destType == "service" {
-		return c.traceIngressToService(ctx, destService, namespace, topology)
 	}
 
 	return trace, nil
@@ -100,6 +90,19 @@ func (c *Client) traceFromIngress(ctx context.Context,
 		trace.Allowed = false
 		trace.BlockedAt = firstHop
 		trace.Reason = fmt.Sprintf("Blocked at ingress: %s", firstHop.Reason)
+		return trace, nil
+	}
+
+	trace.Path = append(trace.Path, *firstHop)
+	if !firstHop.Allowed {
+		trace.Allowed = false
+		trace.BlockedAt = firstHop
+		trace.Reason = fmt.Sprintf("Blocked at ingress: %s", firstHop.Reason)
+		return trace, nil
+	}
+
+	// If the first hop IS the destination, we're done
+	if destType == "service" && (firstHop.To == destService || strings.Contains(firstHop.To, destService)) {
 		return trace, nil
 	}
 
@@ -227,50 +230,6 @@ func (c *Client) traceServiceToService(ctx context.Context,
 	// For now, mark as not found
 	trace.Allowed = false
 	trace.Reason = "No connection path found"
-	return trace, nil
-}
-
-// traceIngressToService traces path from ingress to specific service
-func (c *Client) traceIngressToService(ctx context.Context,
-	serviceName string, namespace string, topology *TopologyData) (*PathTrace, error) {
-
-	trace := &PathTrace{
-		Source:      "ingress-gateway",
-		Destination: serviceName,
-		Path:        []PathHop{},
-		Allowed:     true,
-	}
-
-	if topology == nil {
-		trace.Allowed = false
-		trace.Reason = "Topology data not available"
-		return trace, fmt.Errorf("topology data is nil")
-	}
-
-	// Find ingress connection
-	for _, conn := range topology.Ingress.Connections {
-		if conn.To == serviceName {
-			hop := PathHop{
-				From:     "ingress-gateway",
-				To:       serviceName,
-				Type:     "ingress",
-				Allowed:  conn.Allowed,
-				Reason:   conn.Reason,
-				Policies: conn.Policies,
-			}
-			trace.Path = append(trace.Path, hop)
-
-			if !conn.Allowed {
-				trace.Allowed = false
-				trace.BlockedAt = &hop
-				trace.Reason = fmt.Sprintf("Blocked at ingress: %s", conn.Reason)
-			}
-			return trace, nil
-		}
-	}
-
-	trace.Allowed = false
-	trace.Reason = "No ingress route to service"
 	return trace, nil
 }
 

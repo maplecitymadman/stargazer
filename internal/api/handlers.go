@@ -461,11 +461,36 @@ func (s *Server) handleGetNodes(c *gin.Context) {
 	})
 }
 
-// Troubleshoot endpoint (Phase 6 - AI)
+// Troubleshoot endpoint for automated resource analysis
 func (s *Server) handleTroubleshoot(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "AI troubleshooting not yet implemented - coming in Phase 4-6",
-	})
+	resourceType := c.Query("type")
+	name := c.Query("name")
+	namespace := c.Query("namespace")
+
+	if name == "" || resourceType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "name and type query parameters are required",
+		})
+		return
+	}
+
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	result, err := client.Troubleshoot(c.Request.Context(), resourceType, name, namespace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Troubleshooting failed: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // Get service topology with Cilium, Istio, and Kyverno support
@@ -525,14 +550,50 @@ func (s *Server) handleGetTopology(c *gin.Context) {
 	c.JSON(http.StatusOK, topology)
 }
 
-// Get service connections
+// Get service connections and detailed network analysis
 func (s *Server) handleGetServiceConnections(c *gin.Context) {
-	// Service connections endpoint - returns empty for now
-	_ = c.Param("service_name") // serviceName - reserved for future use
-	_ = c.Query("namespace")    // namespace - reserved for future use
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error": "Service connections not yet implemented",
-	})
+	serviceName := c.Param("service_name")
+	namespace := c.Query("namespace")
+
+	if serviceName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "service_name path parameter is required",
+		})
+		return
+	}
+
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not available",
+		})
+		return
+	}
+
+	ctx := c.Request.Context()
+	topology, err := client.GetTopology(ctx, namespace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get topology: %v", err),
+		})
+		return
+	}
+
+	key := k8s.ServiceKey(namespace, serviceName)
+	connInfo, ok := topology.Connectivity[key]
+	if !ok {
+		// Try without namespace if not found (for global search)
+		connInfo, ok = topology.Connectivity[serviceName]
+	}
+
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": fmt.Sprintf("Service %s not found in topology", key),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, connInfo)
 }
 
 // Trace connection path
@@ -1024,6 +1085,50 @@ func (s *Server) handleApplyCiliumPolicy(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"message":   "Policy applied successfully",
+		"namespace": namespace,
+	})
+}
+
+// Apply Network Policy
+func (s *Server) handleApplyNetworkPolicy(c *gin.Context) {
+	client := s.GetK8sClient()
+	if client == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Kubernetes client not initialized",
+		})
+		return
+	}
+
+	var req struct {
+		YAML      string `json:"yaml" binding:"required"`
+		Namespace string `json:"namespace"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Invalid request: %v", err),
+		})
+		return
+	}
+
+	builder := client.GetPolicyBuilder()
+	ctx := c.Request.Context()
+
+	namespace := req.Namespace
+	if namespace == "" {
+		namespace = client.GetNamespace()
+	}
+
+	err := builder.ApplyNetworkPolicy(ctx, req.YAML, namespace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to apply policy: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"message":   "Network Policy applied successfully",
 		"namespace": namespace,
 	})
 }

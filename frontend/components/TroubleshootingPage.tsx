@@ -13,6 +13,9 @@ export default function TroubleshootingPage({ subsection, namespace }: Troublesh
   const [activeTab, setActiveTab] = useState(subsection || 'blocked');
   const [topology, setTopology] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [selectedResource, setSelectedResource] = useState<{type: string, name: string} | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   useEffect(() => {
     if (subsection) {
@@ -35,6 +38,7 @@ export default function TroubleshootingPage({ subsection, namespace }: Troublesh
   const tabs = [
     { id: 'blocked', label: 'Blocked Connections', icon: 'critical' as const },
     { id: 'services', label: 'Services with Issues', icon: 'degraded' as const },
+    { id: 'automated', label: 'Resource Analyzer', icon: 'scan' as const },
   ];
 
   if (loading) {
@@ -72,7 +76,21 @@ export default function TroubleshootingPage({ subsection, namespace }: Troublesh
       {/* Content */}
       <div>
         {activeTab === 'blocked' && <BlockedConnections topology={topology} namespace={namespace} />}
-        {activeTab === 'services' && <ServicesWithIssues topology={topology} namespace={namespace} />}
+        {activeTab === 'services' && <ServicesWithIssues topology={topology} namespace={namespace} onAnalyze={(name) => {
+          setSelectedResource({type: 'service', name});
+          setActiveTab('automated');
+        }} />}
+        {activeTab === 'automated' && (
+          <ResourceAnalyzer
+            namespace={namespace}
+            initialResource={selectedResource}
+            onAnalysisStart={() => setAnalyzing(true)}
+            onAnalysisComplete={(result) => {
+              setAnalysisResult(result);
+              setAnalyzing(false);
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -198,7 +216,15 @@ function BlockedConnections({ topology, namespace }: { topology: any; namespace?
 }
 
 // Services with Issues Tab
-function ServicesWithIssues({ topology, namespace }: { topology: any; namespace?: string }) {
+function ServicesWithIssues({
+  topology,
+  namespace,
+  onAnalyze
+}: {
+  topology: any;
+  namespace?: string;
+  onAnalyze: (name: string) => void;
+}) {
   const [servicesWithIssues, setServicesWithIssues] = useState<any[]>([]);
 
   useEffect(() => {
@@ -265,9 +291,17 @@ function ServicesWithIssues({ topology, namespace }: { topology: any; namespace?
                     </div>
                   </div>
                 </div>
-                <span className="text-xs px-2 py-1 rounded bg-[#ef4444]/20 text-[#ef4444]">
-                  {service.blockedConnections} blocked
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onAnalyze(service.name)}
+                    className="text-xs px-2 py-1 rounded bg-[#3b82f6]/20 text-[#3b82f6] hover:bg-[#3b82f6]/30 transition-all cursor-pointer"
+                  >
+                    Run Analysis
+                  </button>
+                  <span className="text-xs px-2 py-1 rounded bg-[#ef4444]/20 text-[#ef4444]">
+                    {service.blockedConnections} blocked
+                  </span>
+                </div>
               </div>
               {service.blockingPolicies.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
@@ -287,6 +321,160 @@ function ServicesWithIssues({ topology, namespace }: { topology: any; namespace?
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Resource Analyzer Tab
+function ResourceAnalyzer({
+  namespace,
+  initialResource,
+  onAnalysisStart,
+  onAnalysisComplete
+}: {
+  namespace?: string;
+  initialResource: {type: string, name: string} | null;
+  onAnalysisStart: () => void;
+  onAnalysisComplete: (result: any) => void;
+}) {
+  const [type, setType] = useState(initialResource?.type || 'service');
+  const [name, setName] = useState(initialResource?.name || '');
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialResource) {
+      setType(initialResource.type);
+      setName(initialResource.name);
+      runAnalysis(initialResource.type, initialResource.name);
+    }
+  }, [initialResource]);
+
+  const runAnalysis = async (t: string, n: string) => {
+    if (!n) return;
+    setLoading(true);
+    setError(null);
+    onAnalysisStart();
+    try {
+      const data = await apiClient.troubleshoot(t, n, namespace);
+      setResult(data);
+      onAnalysisComplete(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to run analysis');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="card rounded-lg p-5">
+        <h3 className="text-lg font-semibold text-[#e4e4e7] mb-4 flex items-center gap-2">
+          <Icon name="scan" size="sm" />
+          Heuristic Resource Analyzer
+        </h3>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] rounded px-3 py-2 text-sm text-[#e4e4e7] focus:outline-none focus:ring-1 focus:ring-[#3b82f6]"
+          >
+            <option value="service">Service</option>
+            <option value="pod">Pod</option>
+            <option value="deployment">Deployment</option>
+          </select>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Resource name..."
+            className="flex-1 bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] rounded px-3 py-2 text-sm text-[#e4e4e7] focus:outline-none focus:ring-1 focus:ring-[#3b82f6]"
+          />
+          <button
+            onClick={() => runAnalysis(type, name)}
+            disabled={loading || !name}
+            className={`px-4 py-2 rounded text-sm font-medium transition-all ${
+              loading || !name
+                ? 'bg-[#71717a]/20 text-[#71717a] cursor-not-allowed'
+                : 'bg-[#3b82f6] text-white hover:bg-[#2563eb] active:scale-[0.98] cursor-pointer'
+            }`}
+          >
+            {loading ? 'Analyzing...' : 'Run Analysis'}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3 text-red-400">
+          <Icon name="critical" size="sm" />
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-4">
+          <div className="card rounded-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="text-md font-semibold text-[#e4e4e7] capitalize">
+                  {result.type}: {result.resource}
+                </h4>
+                <p className="text-xs text-[#71717a]">Status: <span className="text-[#3b82f6]">{result.status}</span></p>
+              </div>
+              <div className={`px-2 py-1 rounded text-xs font-bold ${
+                result.issues.some((i: any) => i.priority === 'critical')
+                  ? 'bg-red-500/20 text-red-500'
+                  : result.issues.length > 0 ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-500'
+              }`}>
+                {result.issues.length} ISSUES FOUND
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {result.issues.map((issue: any) => (
+                <div key={issue.id} className="p-3 bg-[#1a1a24] border-l-4 border-red-500 rounded-r">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h5 className="text-sm font-bold text-[#e4e4e7]">{issue.title}</h5>
+                      <p className="text-xs text-[#71717a] mt-1">{issue.description}</p>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                      issue.priority === 'critical' ? 'bg-red-500 text-white' : 'bg-yellow-500 text-black'
+                    }`}>
+                      {issue.priority}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {result.issues.length === 0 && (
+                <div className="text-center py-6">
+                  <Icon name="healthy" className="text-green-500 text-3xl mx-auto mb-2" />
+                  <p className="text-sm text-[#71717a]">No configuration or performance issues detected.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {result.recommendations.length > 0 && (
+            <div className="card rounded-lg p-5 border-l-4 border-blue-500">
+              <h4 className="text-sm font-bold text-[#e4e4e7] mb-3 flex items-center gap-2">
+                <Icon name="info" className="text-[#3b82f6]" size="sm" />
+                Recommended Actions
+              </h4>
+              <ul className="space-y-2">
+                {result.recommendations.map((rec: string, i: number) => (
+                  <li key={i} className="text-xs text-[#a1a1aa] flex items-start gap-2">
+                    <span className="text-[#3b82f6]">•</span>
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
