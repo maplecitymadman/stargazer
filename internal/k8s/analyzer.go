@@ -178,12 +178,17 @@ func (c *Client) troubleshootService(ctx context.Context, name, namespace string
 			// If result exists, traffic is being recorded. Check value.
 			val := metrics.Data.Result[0].Value
 			if len(val) >= 2 {
+				var rps float64
 				rpsStr, ok := val[1].(string)
-				if ok && rpsStr == "0" {
+				if ok {
+					fmt.Sscanf(rpsStr, "%f", &rps)
+				}
+
+				if rps < 0.001 {
 					result.Issues = append(result.Issues, Issue{
 						ID:           GenerateIssueID(name, "zombie-service"),
 						Title:        "Zombie Service (No Traffic)",
-						Description:  "This service has received zero traffic over the last 24 hours.",
+						Description:  fmt.Sprintf("This service has received near-zero traffic (%f RPS) over the last 24 hours.", rps),
 						Priority:     PriorityLow,
 						ResourceType: "Service",
 						ResourceName: name,

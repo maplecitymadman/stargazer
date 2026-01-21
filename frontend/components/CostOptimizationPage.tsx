@@ -30,14 +30,18 @@ export default function CostOptimizationPage({ namespace }: { namespace?: string
       if (topology && topology.services) {
         for (const [_, svc] of Object.entries(topology.services)) {
           const service = svc as any;
-          zombieList.push({
-            name: service.name,
-            namespace: service.namespace,
-            rps: 0,
-            cpu: '100m',
-            memory: '128Mi',
-            potential_saving: '$5/mo'
-          });
+
+          // Check for cost stats and zombie status
+          if (service.cost_stats && service.cost_stats.is_zombie) {
+            zombieList.push({
+              name: service.name,
+              namespace: service.namespace,
+              rps: service.cost_stats.rps || 0,
+              cpu: service.cost_stats.cpu || '100m',
+              memory: service.cost_stats.memory || '128Mi',
+              potential_saving: service.cost_stats.potential_saving || '$15/mo'
+            });
+          }
         }
       }
       setZombies(zombieList);

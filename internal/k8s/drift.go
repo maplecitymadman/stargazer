@@ -71,16 +71,38 @@ func unstructuredGetNestedString(obj map[string]interface{}, fields ...string) (
 // mapServiceToDrift maps services in the topology to drift status from applications
 func (c *Client) mapServiceToDrift(services map[string]ServiceInfo, drift DriftData) {
 	for name, svc := range services {
-		// Try to find an application matching this service
-		// Simpler logic: match application name or namespace
-		// More complex: match resources managed by application
-		for _, app := range drift.Applications {
-			// This is a heuristic match
-			if strings.Contains(strings.ToLower(app.Name), strings.ToLower(svc.Name)) ||
-				(app.Namespace == svc.Namespace && strings.Contains(strings.ToLower(app.Name), "app")) {
-				svc.DriftStatus = app.Status
-				services[name] = svc
-				break
+		matched := false
+
+		// 1. Try precise label matching (standard for ArgoCD)
+		if svc.Labels != nil {
+			instanceName := svc.Labels["app.kubernetes.io/instance"]
+			if instanceName == "" {
+				instanceName = svc.Labels["argocd.argoproj.io/instance"]
+			}
+
+			if instanceName != "" {
+				for _, app := range drift.Applications {
+					if app.Name == instanceName {
+						svc.DriftStatus = app.Status
+						services[name] = svc
+						matched = true
+						break
+					}
+				}
+			}
+		}
+
+		// 2. Fallback to heuristic matching if no label match found
+		if !matched {
+			for _, app := range drift.Applications {
+				// This is a heuristic match
+				if strings.Contains(strings.ToLower(app.Name), strings.ToLower(svc.Name)) ||
+					(app.Namespace == svc.Namespace && strings.Contains(strings.ToLower(app.Name), "app")) {
+					svc.DriftStatus = app.Status
+					services[name] = svc
+					matched = true
+					break
+				}
 			}
 		}
 

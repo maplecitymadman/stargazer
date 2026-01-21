@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // MetricResult represents a Prometheus query result
@@ -66,34 +68,51 @@ func (c *Client) queryPrometheus(ctx context.Context, query string) (*MetricResu
 	return &result, nil
 }
 
-// detectZombieServices returns services with near-zero traffic
-func (c *Client) detectZombieServices(ctx context.Context, namespace string) ([]string, error) {
-	// Query for average RPS over the last 24h
-	// We use istio_requests_total if istio is enabled, otherwise fallback to standard metrics
-	// For simplicity, we'll try a generic query first: rate(http_requests_total[24h])
-	// In a real world scenario, we'd check for multiple metrics (Istio, Cilium, etc)
+// detectZombieServices returns services with traffic stats
+func (c *Client) detectZombieServices(ctx context.Context, namespace string) (map[string]CostStats, error) {
+	stats := make(map[string]CostStats)
 
-	// Query: sum(rate(istio_requests_total[24h])) by (destination_service_name, destination_service_namespace)
+	// Check if Istio is enabled by looking for the namespace
+	_, err := c.clientset.CoreV1().Namespaces().Get(ctx, "istio-system", metav1.GetOptions{})
+	if err != nil {
+		// Istio not found, return empty stats
+		return stats, nil
+	}
+
 	query := "sum(rate(istio_requests_total[24h])) by (destination_service_name, destination_service_namespace)"
+	if namespace != "" {
+		query = fmt.Sprintf("sum(rate(istio_requests_total{destination_service_namespace=\"%s\"}[24h])) by (destination_service_name, destination_service_namespace)", namespace)
+	}
 
 	result, err := c.queryPrometheus(ctx, query)
 	if err != nil {
-		return nil, err
+		return stats, err
 	}
 
-	var zombies []string
-	// If 0 RPS, it's a zombie
-	// (Implementation would check all services and find those NOT in this list or with 0 value)
-
 	for _, r := range result.Data.Result {
-		// RPS value is the second element in the Value array
-		if len(r.Value) < 2 {
+		svcName := r.Metric["destination_service_name"]
+		svcNs := r.Metric["destination_service_namespace"]
+		if svcName == "" || svcNs == "" {
 			continue
 		}
 
-		// Map RPS to service
-		// ... logic to identify services with RPS < threshold ...
+		key := fmt.Sprintf("%s/%s", svcNs, svcName)
+
+		var rps float64
+		if len(r.Value) >= 2 {
+			if rpsStr, ok := r.Value[1].(string); ok {
+				fmt.Sscanf(rpsStr, "%f", &rps)
+			}
+		}
+
+		stats[key] = CostStats{
+			RPS:             rps,
+			IsZombie:        rps < 0.001,
+			CPU:             "100m",   // Estimated reserved
+			Memory:          "128Mi",  // Estimated reserved
+			PotentialSaving: "$15/mo", // Estimated based on cloud pricing
+		}
 	}
 
-	return zombies, nil
+	return stats, nil
 }

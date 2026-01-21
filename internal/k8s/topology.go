@@ -53,20 +53,31 @@ type TopologyData struct {
 
 // ServiceInfo represents a Kubernetes service with topology metadata
 type ServiceInfo struct {
-	Name            string   `json:"name"`
-	Namespace       string   `json:"namespace"`
-	Type            string   `json:"type"`
-	ClusterIP       string   `json:"cluster_ip"`
-	Ports           []string `json:"ports"`
-	Pods            []string `json:"pods"`
-	PodCount        int      `json:"pod_count"`
-	HealthyPods     int      `json:"healthy_pods"`
-	Deployment      string   `json:"deployment,omitempty"`
-	HasServiceMesh  bool     `json:"has_service_mesh"`
-	ServiceMeshType string   `json:"service_mesh_type,omitempty"` // "istio", "cilium", or ""
-	HasCiliumProxy  bool     `json:"has_cilium_proxy"`
-	PodSecurity     string   `json:"pod_security,omitempty"` // "privileged", "baseline", "restricted"
-	DriftStatus     string   `json:"drift_status,omitempty"` // "Synced", "OutOfSync", "Unknown"
+	Name            string            `json:"name"`
+	Namespace       string            `json:"namespace"`
+	Type            string            `json:"type"`
+	ClusterIP       string            `json:"cluster_ip"`
+	Ports           []string          `json:"ports"`
+	Labels          map[string]string `json:"labels,omitempty"`
+	Pods            []string          `json:"pods"`
+	PodCount        int               `json:"pod_count"`
+	HealthyPods     int               `json:"healthy_pods"`
+	Deployment      string            `json:"deployment,omitempty"`
+	HasServiceMesh  bool              `json:"has_service_mesh"`
+	ServiceMeshType string            `json:"service_mesh_type,omitempty"` // "istio", "cilium", or ""
+	HasCiliumProxy  bool              `json:"has_cilium_proxy"`
+	PodSecurity     string            `json:"pod_security,omitempty"` // "privileged", "baseline", "restricted"
+	DriftStatus     string            `json:"drift_status,omitempty"` // "Synced", "OutOfSync", "Unknown"
+	CostStats       *CostStats        `json:"cost_stats,omitempty"`
+}
+
+// CostStats represents resource usage and cost insights
+type CostStats struct {
+	RPS             float64 `json:"rps"`
+	CPU             string  `json:"cpu"`
+	Memory          string  `json:"memory"`
+	PotentialSaving string  `json:"potential_saving"`
+	IsZombie        bool    `json:"is_zombie"`
 }
 
 // ConnectivityInfo represents connectivity information for a service
@@ -681,6 +692,9 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		podsByNamespace[pod.Namespace] = append(podsByNamespace[pod.Namespace], pod)
 	}
 
+	// Fetch cost stats (zombie services)
+	costStats, _ := c.detectZombieServices(ctx, namespace)
+
 	// Build service info
 	for _, svc := range serviceList.Items {
 		serviceInfo := ServiceInfo{
@@ -688,6 +702,7 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 			Namespace:   svc.Namespace,
 			Type:        string(svc.Spec.Type),
 			ClusterIP:   svc.Spec.ClusterIP,
+			Labels:      svc.Labels,
 			PodSecurity: "baseline", // Default
 		}
 
@@ -783,6 +798,9 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		}
 
 		key := fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
+		if stats, ok := costStats[key]; ok {
+			serviceInfo.CostStats = &stats
+		}
 		services[key] = serviceInfo
 	}
 

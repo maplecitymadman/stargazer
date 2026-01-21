@@ -179,6 +179,7 @@ To fix:
 		kubeconfigPath: resolvedPath,
 		context:        contextName,
 		restConfig:     config,
+		prometheusURL:  "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090",
 		cache: &cache{
 			data:     make(map[string]cacheEntry),
 			cacheTTL: cacheTTL,
