@@ -34,14 +34,9 @@ export default function HealthMetrics({ health, namespace, onEventsClick }: Heal
 
   // Calculate policy coverage
   const totalServices = summary.total_services || 0;
-  const servicesWithPolicies = Object.values(topology?.services || {}).filter((service: any) => {
-    // Check if service has any policy coverage
-    const hasK8sPolicy = (topology?.network_policies || []).some((np: any) => np.namespace === service.namespace);
-    const hasCiliumPolicy = (topology?.cilium_policies || []).some((cp: any) =>
-      cp.namespace === service.namespace || cp.namespace === ''
-    );
-    return hasK8sPolicy || hasCiliumPolicy;
-  }).length;
+  const servicesWithPolicies = Object.values(topology?.services || {}).filter((service: any) =>
+    service.has_policy
+  ).length;
 
   const policyCoverage = totalServices > 0
     ? Math.round((servicesWithPolicies / totalServices) * 100)

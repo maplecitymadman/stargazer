@@ -68,6 +68,7 @@ type ServiceInfo struct {
 	HasCiliumProxy  bool              `json:"has_cilium_proxy"`
 	PodSecurity     string            `json:"pod_security,omitempty"` // "privileged", "baseline", "restricted"
 	DriftStatus     string            `json:"drift_status,omitempty"` // "Synced", "OutOfSync", "Unknown"
+	HasPolicy       bool              `json:"has_policy"`             // True if selected by a NetworkPolicy
 	CostStats       *CostStats        `json:"cost_stats,omitempty"`
 }
 
@@ -457,6 +458,27 @@ func (c *Client) GetTopology(ctx context.Context, namespace string) (*TopologyDa
 		return nil, fmt.Errorf("failed to fetch topology data: %w", err)
 	}
 
+	// Enrich services with policy coverage (must be done after fetching policies)
+	for k, svc := range services {
+		hasPolicy := false
+		for _, np := range networkPolicies {
+			if np.Namespace == svc.Namespace {
+				// Convert map to selector (np.Policy is populated in getNetworkPolicies)
+				if np.Policy != nil {
+					npSelector, err := metav1.LabelSelectorAsSelector(&np.Policy.Spec.PodSelector)
+					if err == nil && !npSelector.Empty() {
+						if npSelector.Matches(labels.Set(svc.Labels)) { // Use svc.Labels (from ServiceInfo) which we populated
+							hasPolicy = true
+							break
+						}
+					}
+				}
+			}
+		}
+		svc.HasPolicy = hasPolicy
+		services[k] = svc
+	}
+
 	// Get ingress/egress info (depends on fetched data)
 	ingress, err := c.getIngressInfo(ctx, ns, services, infra, networkPolicies, ciliumPolicies, istioPolicies)
 	if err != nil {
@@ -704,6 +726,7 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 			ClusterIP:   svc.Spec.ClusterIP,
 			Labels:      svc.Labels,
 			PodSecurity: "baseline", // Default
+			HasPolicy:   false,
 		}
 
 		// Find pods matching service selector
@@ -1248,9 +1271,15 @@ func (c *Client) calculateTopologySummary(services map[string]ServiceInfo, conne
 	}
 
 	for _, connInfo := range connectivity {
-		totalConnections += len(connInfo.Connections)
-		allowedConnections += len(connInfo.CanReach)
-		blockedConnections += len(connInfo.BlockedFrom)
+		for _, conn := range connInfo.Connections {
+			totalConnections++
+			if conn.Allowed && !conn.BlockedByPolicy {
+				allowedConnections++
+			} else {
+				// Count as blocked if it's explicitly blocked by policy or just not allowed
+				blockedConnections++
+			}
+		}
 	}
 
 	meshCoverage := "0%"

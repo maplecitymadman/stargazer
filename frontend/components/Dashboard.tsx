@@ -50,7 +50,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
   const summary = topology?.summary || {};
   const connectionHealth = summary.total_connections > 0
     ? Math.round((summary.allowed_connections / summary.total_connections) * 100)
-    : 100;
+    : null;
 
   const servicesWithIssues = topology ? Object.values(topology.connectivity || {}).filter((conn: any) =>
     conn.blocked_from && conn.blocked_from.length > 0
@@ -78,9 +78,9 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         <button
           onClick={() => onNavigate?.('traffic-monitor')}
           className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
-            connectionHealth < 80
+            connectionHealth !== null && connectionHealth < 80
               ? 'border-amber-500/20 hover:border-amber-500/40 hover:shadow-[0_0_20px_-5px_rgba(245,158,11,0.2)]'
-              : connectionHealth < 100
+              : connectionHealth !== null && connectionHealth < 100
                 ? 'border-[rgba(255,255,255,0.08)] hover:border-blue-500/30'
                 : 'border-[rgba(255,255,255,0.08)] hover:border-purple-500/30'
           }`}
@@ -99,10 +99,10 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
           <div className={`text-3xl font-bold tracking-tight mb-1 text-glow relative z-10 ${
             connectionHealth === 100 ? 'text-purple-400' : 'text-[#e4e4e7]'
           }`}>
-            {connectionHealth}%
+            {connectionHealth !== null ? `${connectionHealth}%` : "N/A"}
           </div>
           <div className="text-xs text-[#71717a] relative z-10 font-mono">
-            {summary.allowed_connections || 0}/{summary.total_connections || 0} FLOWS ALLOWED
+            {connectionHealth !== null ? `${summary.allowed_connections || 0}/${summary.total_connections || 0} FLOWS ALLOWED` : "NO TRAFFIC"}
           </div>
         </button>
 
@@ -142,7 +142,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         <button
           onClick={() => onNavigate?.('policies')}
           className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
-             connectionHealth >= 95
+             connectionHealth !== null && connectionHealth >= 95
               ? 'border-[rgba(255,255,255,0.08)] hover:border-cyan-500/30 hover:shadow-[0_0_20px_-5px_rgba(6,182,212,0.2)]'
               : 'border-amber-500/20 hover:border-amber-500/40'
           }`}
@@ -153,15 +153,15 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
           <div className="flex items-center justify-between mb-3 relative z-10">
             <div className="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium">Enforcement</div>
             <Icon
-              name={connectionHealth >= 95 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"}
-              className={connectionHealth >= 95 ? "text-cyan-400" : connectionHealth >= 80 ? "text-amber-400" : "text-red-400"}
+              name={connectionHealth !== null && connectionHealth >= 95 ? "healthy" : connectionHealth !== null && connectionHealth >= 80 ? "degraded" : "critical"}
+              className={connectionHealth !== null && connectionHealth >= 95 ? "text-cyan-400" : connectionHealth !== null && connectionHealth >= 80 ? "text-amber-400" : "text-red-400"}
               size="sm"
             />
           </div>
           <div className={`text-3xl font-bold tracking-tight mb-1 text-glow relative z-10 ${
-            connectionHealth >= 95 ? 'text-cyan-400' : connectionHealth >= 80 ? 'text-amber-400' : 'text-red-400'
+            connectionHealth !== null && connectionHealth >= 95 ? 'text-cyan-400' : connectionHealth !== null && connectionHealth >= 80 ? 'text-amber-400' : 'text-red-400'
           }`}>
-            {connectionHealth}%
+            {connectionHealth !== null ? `${connectionHealth}%` : "N/A"}
           </div>
           <div className="text-xs text-[#71717a] relative z-10 font-mono">
             POLICY ACTIVE

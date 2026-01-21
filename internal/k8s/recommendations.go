@@ -70,7 +70,8 @@ func (c *Client) GetComplianceScore(ctx context.Context, topology *TopologyData)
 
 	score := 0
 	if totalChecks > 0 {
-		score = (passedChecks * 100) / totalChecks
+		// Use floating point for better precision, then round
+		score = int((float64(passedChecks) / float64(totalChecks)) * 100)
 	}
 
 	return score, map[string]interface{}{
