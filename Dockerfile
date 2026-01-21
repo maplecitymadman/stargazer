@@ -20,4 +20,4 @@ WORKDIR /app
 COPY --from=backend-builder /app/bin/stargazer /usr/local/bin/stargazer
 COPY --from=frontend-builder /app/frontend/out /app/frontend/out
 EXPOSE 8000
-CMD ["stargazer"]
+CMD ["stargazer", "web", "--port", "8000"]
