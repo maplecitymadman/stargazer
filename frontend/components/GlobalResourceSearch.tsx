@@ -54,7 +54,15 @@ export default function GlobalResourceSearch({ onClose, onNavigate }: GlobalReso
   }, [query]);
 
   const handleSelect = (result: SearchResult) => {
-    onNavigate(result.type, result.name, result.namespace);
+    if (result.type === 'service') {
+      onNavigate(result.type, result.name, result.namespace);
+      // Navigation component handles routing to network-graph
+    } else if (result.type === 'pod') {
+      onNavigate(result.type, result.name, result.namespace);
+      // Navigation component handles routing to resources
+    } else {
+      onNavigate(result.type, result.name, result.namespace);
+    }
     onClose();
   };
 

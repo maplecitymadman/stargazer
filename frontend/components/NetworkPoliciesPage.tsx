@@ -34,9 +34,9 @@ export default function NetworkPoliciesPage({ subsection, namespace }: NetworkPo
   };
 
   const tabs = [
-    { id: 'view', label: 'View Policies', icon: 'scan' as const },
-    { id: 'build', label: 'Build Policy', icon: 'execute' as const },
-    { id: 'test', label: 'Test Policy', icon: 'info' as const },
+    { id: 'view', label: 'Active Policies', icon: 'scan' as const },
+    { id: 'build', label: 'Policy Builder', icon: 'execute' as const },
+    { id: 'test', label: 'Policy Playground', icon: 'info' as const },
   ];
 
   if (loading) {

@@ -65,8 +65,8 @@ export default function CostOptimizationPage({ namespace }: { namespace?: string
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-[#e4e4e7] mb-1">Cost & Resource Optimization</h2>
-          <p className="text-sm text-[#71717a]">Identify unused resources and "Zombie" services to save costs.</p>
+          <h2 className="text-2xl font-bold text-[#e4e4e7] mb-1">Resources & Optimization</h2>
+          <p className="text-sm text-[#71717a]">Monitor resource efficiency and optimize cluster costs.</p>
         </div>
         <div className="bg-[#10b981]/10 border border-[#10b981]/30 rounded-lg px-4 py-2">
           <div className="text-xs text-[#71717a] uppercase tracking-wider mb-1">Potential Monthly Savings</div>

@@ -106,11 +106,8 @@ func (c *Client) detectZombieServices(ctx context.Context, namespace string) (ma
 		}
 
 		stats[key] = CostStats{
-			RPS:             rps,
-			IsZombie:        rps < 0.001,
-			CPU:             "100m",   // Estimated reserved
-			Memory:          "128Mi",  // Estimated reserved
-			PotentialSaving: "$15/mo", // Estimated based on cloud pricing
+			RPS:      rps,
+			IsZombie: rps < 0.001,
 		}
 	}
 

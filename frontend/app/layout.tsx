@@ -3,8 +3,8 @@ import './globals.css'
 import Toaster from '@/components/Toaster'
 
 export const metadata: Metadata = {
-  title: 'Stargazer - Kubernetes Troubleshooting',
-  description: 'Modern Kubernetes troubleshooting dashboard',
+  title: 'Stargazer - K8S CLUSTER OBSERVATORY',
+  description: 'Premium Kubernetes Cluster Observatory',
 }
 
 export default function RootLayout({

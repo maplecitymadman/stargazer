@@ -263,57 +263,15 @@ export default function Home() {
   const getBreadcrumbs = () => {
     const base = [{ label: 'DASHBOARD', onClick: () => handleSectionChange('dashboard') }];
 
-    // Map subsection IDs to labels
-    const subsectionLabels: Record<string, Record<string, string>> = {
-      'traffic-analysis': {
-        'topology': 'Service Topology',
-        'path-trace': 'Path Tracer',
-        'ingress': 'Ingress Traffic',
-        'egress': 'Egress Traffic',
-      },
-      'network-policies': {
-        'view': 'View Policies',
-        'build': 'Build Policy',
-        'test': 'Test Policy',
-      },
-      'compliance': {
-        'score': 'Compliance Score',
-        'recommendations': 'Recommendations',
-        'cost': 'Cost Optimization',
-      },
-      'troubleshooting': {
-        'blocked': 'Blocked Connections',
-        'services': 'Services with Issues',
-      },
-    };
-
     switch (currentSection) {
-      case 'traffic-analysis':
-        const taBase = [...base, { label: 'TRAFFIC ANALYSIS', onClick: () => handleSectionChange('traffic-analysis') }];
-        if (currentSubsection && subsectionLabels['traffic-analysis'][currentSubsection]) {
-          return [...taBase, { label: subsectionLabels['traffic-analysis'][currentSubsection].toUpperCase() }];
-        }
-        return taBase;
-      case 'network-policies':
-        const npBase = [...base, { label: 'NETWORK POLICIES', onClick: () => handleSectionChange('network-policies') }];
-        if (currentSubsection && subsectionLabels['network-policies'][currentSubsection]) {
-          return [...npBase, { label: subsectionLabels['network-policies'][currentSubsection].toUpperCase() }];
-        }
-        return npBase;
-      case 'compliance':
-        const compBase = [...base, { label: 'COMPLIANCE', onClick: () => handleSectionChange('compliance') }];
-        if (currentSubsection && subsectionLabels['compliance'][currentSubsection]) {
-          return [...compBase, { label: subsectionLabels['compliance'][currentSubsection].toUpperCase() }];
-        }
-        return compBase;
-      case 'troubleshooting':
-        const tsBase = [...base, { label: 'TROUBLESHOOTING', onClick: () => handleSectionChange('troubleshooting') }];
-        if (currentSubsection && subsectionLabels['troubleshooting'][currentSubsection]) {
-          return [...tsBase, { label: subsectionLabels['troubleshooting'][currentSubsection].toUpperCase() }];
-        }
-        return tsBase;
-      case 'topology':
-        return [...base, { label: 'SERVICE TOPOLOGY' }];
+      case 'network-graph':
+        return [...base, { label: 'NETWORK GRAPH' }];
+      case 'traffic-monitor':
+        return [...base, { label: 'TRAFFIC MONITOR' }];
+      case 'policies':
+        return [...base, { label: 'POLICIES' }];
+      case 'resources':
+        return [...base, { label: 'RESOURCES' }];
       case 'events':
         return [...base, { label: 'EVENTS' }];
       case 'settings':
@@ -366,11 +324,10 @@ export default function Home() {
                 <Breadcrumbs items={getBreadcrumbs()} />
                 <h1 className="text-xl font-semibold text-[#e4e4e7] tracking-tight mt-1">
                   {currentSection === 'dashboard' && 'Dashboard'}
-                  {currentSection === 'traffic-analysis' && 'Traffic Analysis'}
-                  {currentSection === 'network-policies' && 'Network Policies'}
-                  {currentSection === 'compliance' && 'Compliance'}
-                  {currentSection === 'troubleshooting' && 'Troubleshooting'}
-                  {currentSection === 'topology' && 'Service Topology'}
+                  {currentSection === 'network-graph' && 'Network Graph'}
+                  {currentSection === 'traffic-monitor' && 'Traffic Monitor'}
+                  {currentSection === 'policies' && 'Policies'}
+                  {currentSection === 'resources' && 'Resources'}
                   {currentSection === 'events' && 'Events'}
                   {currentSection === 'settings' && 'Settings'}
                 </h1>
@@ -441,7 +398,7 @@ export default function Home() {
                   </div>
                   <Dashboard
                     namespace={namespace}
-                    onNavigate={(section, subsection) => handleSectionChange(section, subsection)}
+                    onNavigate={(section) => handleSectionChange(section)}
                   />
                 </>
               )}
@@ -480,57 +437,19 @@ export default function Home() {
             </>
           )}
 
-          {currentSection === 'traffic-analysis' && (
-            currentSubsection ? (
-              <TrafficAnalysisPage subsection={currentSubsection} namespace={namespace} />
-            ) : (
-              <OverviewPage
-                section="traffic-analysis"
-                namespace={namespace}
-                onNavigate={(subsection) => handleSectionChange('traffic-analysis', subsection)}
-              />
-            )
+          {currentSection === 'traffic-monitor' && (
+            <TrafficAnalysisPage namespace={namespace} />
           )}
 
-          {currentSection === 'network-policies' && (
-            currentSubsection ? (
-              <NetworkPoliciesPage subsection={currentSubsection} namespace={namespace} />
-            ) : (
-              <OverviewPage
-                section="network-policies"
-                namespace={namespace}
-                onNavigate={(subsection) => handleSectionChange('network-policies', subsection)}
-              />
-            )
+          {currentSection === 'policies' && (
+            <NetworkPoliciesPage namespace={namespace} />
           )}
 
-          {currentSection === 'compliance' && (
-            currentSubsection === 'cost' ? (
-              <CostOptimizationPage namespace={namespace} />
-            ) : currentSubsection ? (
-              <CompliancePage subsection={currentSubsection} namespace={namespace} />
-            ) : (
-              <OverviewPage
-                section="compliance"
-                namespace={namespace}
-                onNavigate={(subsection) => handleSectionChange('compliance', subsection)}
-              />
-            )
+          {currentSection === 'resources' && (
+            <CostOptimizationPage namespace={namespace} />
           )}
 
-          {currentSection === 'troubleshooting' && (
-            currentSubsection ? (
-              <TroubleshootingPage subsection={currentSubsection} namespace={namespace} />
-            ) : (
-              <OverviewPage
-                section="troubleshooting"
-                namespace={namespace}
-                onNavigate={(subsection) => handleSectionChange('troubleshooting', subsection)}
-              />
-            )
-          )}
-
-          {currentSection === 'topology' && (
+          {currentSection === 'network-graph' && (
             <>
               <ServiceTopology namespace={namespace} />
               <div className="mt-6">
@@ -549,7 +468,6 @@ export default function Home() {
         </main>
         </ErrorBoundary>
       </div>
-
     </div>
   );
 }

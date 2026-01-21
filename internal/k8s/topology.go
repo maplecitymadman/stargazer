@@ -798,7 +798,48 @@ func (c *Client) getTopologyServices(ctx context.Context, namespace string, infr
 		}
 
 		key := fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
+
+		// Calculate resource requests from the first matching pod (assuming identical replicas)
+		var totalCPU int64    // millicores
+		var totalMemory int64 // MiB
+
+		if len(matchingPods) > 0 {
+			// Find the actual pod object
+			var firstPod *corev1.Pod
+			if namespacePods, ok := podsByNamespace[svc.Namespace]; ok {
+				for _, p := range namespacePods {
+					if p.Name == matchingPods[0] {
+						firstPod = p
+						break
+					}
+				}
+			}
+
+			if firstPod != nil {
+				for _, container := range firstPod.Spec.Containers {
+					cpu := container.Resources.Requests.Cpu().MilliValue()
+					mem := container.Resources.Requests.Memory().Value() / (1024 * 1024)
+					totalCPU += cpu
+					totalMemory += totalMemory + mem
+				}
+			}
+		}
+
 		if stats, ok := costStats[key]; ok {
+			// Use real resource data if available, otherwise defaults (0)
+			stats.CPU = fmt.Sprintf("%dm", totalCPU)
+			stats.Memory = fmt.Sprintf("%dMi", totalMemory)
+
+			// Calculate potential monthly savings if it's a zombie service
+			// Estimation: ~$30/vCPU/mo, ~$4/GB/mo
+			if stats.IsZombie && (totalCPU > 0 || totalMemory > 0) {
+				cpuCost := float64(totalCPU) / 1000.0 * 30.0
+				memCost := float64(totalMemory) / 1024.0 * 4.0
+				stats.PotentialSaving = fmt.Sprintf("$%.2f/mo", cpuCost+memCost)
+			} else {
+				stats.PotentialSaving = "$0.00/mo"
+			}
+
 			serviceInfo.CostStats = &stats
 		}
 		services[key] = serviceInfo

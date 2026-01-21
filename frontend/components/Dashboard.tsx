@@ -40,9 +40,9 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
 
   if (loading) {
     return (
-      <div className="card rounded-lg p-8 text-center">
+      <div className="glass rounded-xl p-8 text-center border border-[rgba(255,255,255,0.08)]">
         <Icon name="loading" className="text-[#3b82f6] animate-pulse text-4xl mb-4" />
-        <p className="text-[#71717a]">Loading dashboard...</p>
+        <p className="text-[#71717a] font-medium tracking-wide">INITIALIZING DASHBOARD SYSTEM...</p>
       </div>
     );
   }
@@ -71,206 +71,222 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
   const egressBlocked = topology?.egress?.connections?.filter((c: any) => !c.allowed).length || 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Key Metrics - Compact Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {/* Connection Health */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Policy Permissiveness */}
         <button
-          onClick={() => onNavigate?.('traffic-analysis')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
-            connectionHealth < 80 ? 'border-[#ef4444]/30' : connectionHealth < 100 ? 'border-[#f59e0b]/30' : ''
+          onClick={() => onNavigate?.('traffic-monitor')}
+          className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
+            connectionHealth < 80
+              ? 'border-amber-500/20 hover:border-amber-500/40 hover:shadow-[0_0_20px_-5px_rgba(245,158,11,0.2)]'
+              : connectionHealth < 100
+                ? 'border-[rgba(255,255,255,0.08)] hover:border-blue-500/30'
+                : 'border-[rgba(255,255,255,0.08)] hover:border-purple-500/30'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-[#71717a]">Connection Health</div>
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Icon name="network" size="lg" />
+          </div>
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <div className="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium">Permissiveness</div>
             <Icon
-              name={connectionHealth === 100 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"}
-              className={connectionHealth === 100 ? "text-[#10b981]" : connectionHealth >= 80 ? "text-[#f59e0b]" : "text-[#ef4444]"}
+              name={connectionHealth === 100 ? "info" : "check"}
+              className={connectionHealth === 100 ? "text-purple-400" : "text-amber-400"}
               size="sm"
             />
           </div>
-          <div className={`text-2xl font-bold ${
-            connectionHealth === 100 ? 'text-[#10b981]' : connectionHealth >= 80 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+          <div className={`text-3xl font-bold tracking-tight mb-1 text-glow relative z-10 ${
+            connectionHealth === 100 ? 'text-purple-400' : 'text-[#e4e4e7]'
           }`}>
             {connectionHealth}%
           </div>
-          <div className="text-xs text-[#71717a] mt-1">
-            {summary.allowed_connections || 0} / {summary.total_connections || 0} allowed
+          <div className="text-xs text-[#71717a] relative z-10 font-mono">
+            {summary.allowed_connections || 0}/{summary.total_connections || 0} FLOWS ALLOWED
           </div>
         </button>
 
         {/* Service Mesh Connections */}
         <button
-          onClick={() => onNavigate?.('traffic-analysis', 'topology')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
-            meshCoveragePercent >= 80 ? 'border-[#10b981]/30' : meshCoveragePercent >= 50 ? 'border-[#f59e0b]/30' : ''
+          onClick={() => onNavigate?.('network-graph')}
+          className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
+            meshCoveragePercent >= 80
+              ? 'border-[rgba(255,255,255,0.08)] hover:border-blue-500/30 hover:shadow-[0_0_20px_-5px_rgba(59,130,246,0.2)]'
+              : meshCoveragePercent >= 50
+                ? 'border-amber-500/20 hover:border-amber-500/40'
+                : 'border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.15)]'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-[#71717a]">Service Mesh</div>
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Icon name="check" size="lg" />
+          </div>
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <div className="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium">Service Mesh</div>
             <Icon
               name={meshCoveragePercent >= 80 ? "healthy" : meshCoveragePercent >= 50 ? "degraded" : "info"}
-              className={meshCoveragePercent >= 80 ? "text-[#10b981]" : meshCoveragePercent >= 50 ? "text-[#f59e0b]" : "text-[#71717a]"}
+              className={meshCoveragePercent >= 80 ? "text-blue-400" : meshCoveragePercent >= 50 ? "text-amber-400" : "text-[#71717a]"}
               size="sm"
             />
           </div>
-          <div className={`text-2xl font-bold ${
-            meshCoveragePercent >= 80 ? 'text-[#10b981]' : meshCoveragePercent >= 50 ? 'text-[#f59e0b]' : 'text-[#e4e4e7]'
+          <div className={`text-3xl font-bold tracking-tight mb-1 text-glow relative z-10 ${
+            meshCoveragePercent >= 80 ? 'text-blue-400' : meshCoveragePercent >= 50 ? 'text-amber-400' : 'text-[#e4e4e7]'
           }`}>
             {meshConnections}
           </div>
-          <div className="text-xs text-[#71717a] mt-1">
-            {meshCoveragePercent}% coverage
+          <div className="text-xs text-[#71717a] relative z-10 font-mono">
+           {meshCoveragePercent}% COVERAGE
           </div>
         </button>
 
         {/* Policy Enforcement Rate */}
         <button
-          onClick={() => onNavigate?.('network-policies')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
-            connectionHealth >= 95 ? 'border-[#10b981]/30' : connectionHealth >= 80 ? 'border-[#f59e0b]/30' : ''
+          onClick={() => onNavigate?.('policies')}
+          className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
+             connectionHealth >= 95
+              ? 'border-[rgba(255,255,255,0.08)] hover:border-cyan-500/30 hover:shadow-[0_0_20px_-5px_rgba(6,182,212,0.2)]'
+              : 'border-amber-500/20 hover:border-amber-500/40'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-[#71717a]">Policy Enforcement</div>
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Icon name="scan" size="lg" />
+          </div>
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <div className="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium">Enforcement</div>
             <Icon
               name={connectionHealth >= 95 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"}
-              className={connectionHealth >= 95 ? "text-[#10b981]" : connectionHealth >= 80 ? "text-[#f59e0b]" : "text-[#ef4444]"}
+              className={connectionHealth >= 95 ? "text-cyan-400" : connectionHealth >= 80 ? "text-amber-400" : "text-red-400"}
               size="sm"
             />
           </div>
-          <div className={`text-2xl font-bold ${
-            connectionHealth >= 95 ? 'text-[#10b981]' : connectionHealth >= 80 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+          <div className={`text-3xl font-bold tracking-tight mb-1 text-glow relative z-10 ${
+            connectionHealth >= 95 ? 'text-cyan-400' : connectionHealth >= 80 ? 'text-amber-400' : 'text-red-400'
           }`}>
             {connectionHealth}%
           </div>
-          <div className="text-xs text-[#71717a] mt-1">
-            {summary.allowed_connections || 0} / {summary.total_connections || 0} allowed
+          <div className="text-xs text-[#71717a] relative z-10 font-mono">
+            POLICY ACTIVE
           </div>
         </button>
 
         {/* Compliance Score */}
         <button
-          onClick={() => onNavigate?.('compliance', 'score')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
-            (score?.score || 0) < 60 ? 'border-[#ef4444]/30' : (score?.score || 0) < 80 ? 'border-[#f59e0b]/30' : ''
+          onClick={() => onNavigate?.('resources')}
+           className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] relative overflow-hidden ${
+            (score?.score || 0) < 60
+              ? 'border-red-500/20 hover:border-red-500/40'
+              : (score?.score || 0) < 80
+                ? 'border-amber-500/20 hover:border-amber-500/40'
+                : 'border-[rgba(255,255,255,0.08)] hover:border-purple-500/30 hover:shadow-[0_0_20px_-5px_rgba(168,85,247,0.2)]'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-[#71717a]">Compliance</div>
+           <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Icon name="check" size="lg" />
+          </div>
+          <div className="flex items-center justify-between mb-3 relative z-10">
+            <div className="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium">Compliance</div>
             <Icon
               name={(score?.score || 0) >= 80 ? "healthy" : (score?.score || 0) >= 60 ? "degraded" : "critical"}
-              className={(score?.score || 0) >= 80 ? "text-[#10b981]" : (score?.score || 0) >= 60 ? "text-[#f59e0b]" : "text-[#ef4444]"}
+              className={(score?.score || 0) >= 80 ? "text-purple-400" : (score?.score || 0) >= 60 ? "text-amber-400" : "text-red-400"}
               size="sm"
             />
           </div>
-          <div className={`text-2xl font-bold ${
-            (score?.score || 0) >= 80 ? 'text-[#10b981]' : (score?.score || 0) >= 60 ? 'text-[#f59e0b]' : 'text-[#ef4444]'
+          <div className={`text-3xl font-bold tracking-tight mb-1 text-glow relative z-10 ${
+            (score?.score || 0) >= 80 ? 'text-purple-400' : (score?.score || 0) >= 60 ? 'text-amber-400' : 'text-red-400'
           }`}>
             {score?.score || 0}%
           </div>
-          <div className="text-xs text-[#71717a] mt-1">
-            {score?.passed || 0} / {score?.total || 0} checks
+          <div className="text-xs text-[#71717a] relative z-10 font-mono">
+            {score?.passed || 0}/{score?.total || 0} CHECKS PASSED
           </div>
         </button>
       </div>
 
       {/* Quick Actions - Compact */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <button
-          onClick={() => onNavigate?.('traffic-analysis', 'topology')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Icon name="network" className="text-[#3b82f6]" size="sm" />
-            <div className="text-sm font-semibold text-[#e4e4e7]">Topology</div>
-          </div>
-          <div className="text-xs text-[#71717a]">
-            {summary.total_services || 0} services • {summary.total_connections || 0} connections
-          </div>
-        </button>
-
-        <button
-          onClick={() => onNavigate?.('traffic-analysis', 'path-trace')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Icon name="network" className="text-[#8b5cf6]" size="sm" />
-            <div className="text-sm font-semibold text-[#e4e4e7]">Path Tracer</div>
-          </div>
-          <div className="text-xs text-[#71717a]">Debug connection paths</div>
-        </button>
-
-        <button
-          onClick={() => onNavigate?.('network-policies')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Icon name="scan" className="text-[#10b981]" size="sm" />
-            <div className="text-sm font-semibold text-[#e4e4e7]">Policies</div>
-          </div>
-          <div className="text-xs text-[#71717a]">
-            {topology?.infrastructure?.network_policies || 0} K8s • {topology?.infrastructure?.cilium_policies || 0} Cilium
-          </div>
-        </button>
-
-        <button
-          onClick={() => onNavigate?.('compliance')}
-          className="card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Icon name="scan" className="text-[#3b82f6]" size="sm" />
-            <div className="text-sm font-semibold text-[#e4e4e7]">Compliance</div>
-          </div>
-          <div className="text-xs text-[#71717a]">
-            {score?.recommendations_count || 0} recommendations
-          </div>
-        </button>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Topology', icon: 'network' as const, color: 'text-blue-400', section: 'traffic-analysis', subsection: 'topology', desc: `${summary.total_services || 0} SVCS • ${summary.total_connections || 0} LINKS` },
+          { label: 'Path Tracer', icon: 'network' as const, color: 'text-purple-400', section: 'traffic-analysis', subsection: 'path-trace', desc: 'DEBUG PATHS' },
+          { label: 'Policies', icon: 'scan' as const, color: 'text-emerald-400', section: 'network-policies', desc: `${(topology?.infrastructure?.network_policies || 0) + (topology?.infrastructure?.cilium_policies || 0)} ACTIVE` },
+          { label: 'Compliance', icon: 'scan' as const, color: 'text-cyan-400', section: 'compliance', desc: `${score?.recommendations_count || 0} ACTIONS` }
+        ].map((action, idx) => (
+           <button
+            key={idx}
+            onClick={() => onNavigate?.(action.section, action.subsection)}
+            className="group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-4 border border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.15)] transition-all text-left cursor-pointer active:scale-[0.98] flex items-center justify-between"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Icon name={action.icon} className={action.color} size="sm" />
+                <div className="text-sm font-semibold text-[#e4e4e7] tracking-wide">{action.label}</div>
+              </div>
+              <div className="text-[10px] text-[#71717a] font-mono uppercase pl-6">
+                {action.desc}
+              </div>
+            </div>
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[#71717a] -translate-x-2 group-hover:translate-x-0 duration-200">
+               <Icon name="info" size="sm" />
+            </div>
+          </button>
+        ))}
       </div>
 
       {/* Traffic Summary - Compact */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <button
           onClick={() => onNavigate?.('traffic-analysis', 'ingress')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
-            ingressBlocked > 0 ? 'border-[#ef4444]/30' : ''
+          className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] ${
+            ingressBlocked > 0
+            ? 'border-red-500/20 hover:border-red-500/40'
+            : 'border-[rgba(255,255,255,0.08)] hover:border-blue-500/30'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Icon name="network" className="text-[#3b82f6]" size="sm" />
-              <div className="text-sm font-semibold text-[#e4e4e7]">Ingress</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                 <Icon name="network" size="sm" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-[#e4e4e7] tracking-wide">Ingress Traffic</div>
+                <div className="text-[10px] text-[#71717a] font-mono">INBOUND TRAFFIC FLOW</div>
+              </div>
             </div>
             {ingressBlocked > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded bg-[#ef4444]/20 text-[#ef4444]">
-                {ingressBlocked} blocked
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 font-mono">
+                {ingressBlocked} BLOCKED
               </span>
             )}
           </div>
-          <div className="text-xs text-[#71717a]">
-            {topology?.ingress?.routes?.length || 0} routes • {topology?.ingress?.connections?.length || 0} connections
+          <div className="text-xs text-[#a1a1aa] pl-[44px]">
+            {topology?.ingress?.routes?.length || 0} Routes configured • {topology?.ingress?.connections?.length || 0} Active connections
           </div>
         </button>
 
         <button
           onClick={() => onNavigate?.('traffic-analysis', 'egress')}
-          className={`card rounded-lg p-4 hover:bg-[#252530] transition-all text-left cursor-pointer active:scale-[0.98] ${
-            egressBlocked > 0 ? 'border-[#ef4444]/30' : ''
+          className={`group bg-[#0a0a0f]/40 backdrop-blur-md rounded-xl p-5 border transition-all text-left cursor-pointer active:scale-[0.98] ${
+            egressBlocked > 0
+            ? 'border-red-500/20 hover:border-red-500/40'
+            : 'border-[rgba(255,255,255,0.08)] hover:border-purple-500/30'
           }`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Icon name="network" className="text-[#8b5cf6]" size="sm" />
-              <div className="text-sm font-semibold text-[#e4e4e7]">Egress</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                 <Icon name="network" size="sm" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-[#e4e4e7] tracking-wide">Egress Traffic</div>
+                <div className="text-[10px] text-[#71717a] font-mono">OUTBOUND TRAFFIC FLOW</div>
+              </div>
             </div>
             {egressBlocked > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded bg-[#ef4444]/20 text-[#ef4444]">
-                {egressBlocked} blocked
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 font-mono">
+                {egressBlocked} BLOCKED
               </span>
             )}
           </div>
-          <div className="text-xs text-[#71717a]">
-            {topology?.egress?.external_services?.length || 0} external • {topology?.egress?.connections?.length || 0} connections
+          <div className="text-xs text-[#a1a1aa] pl-[44px]">
+            {topology?.egress?.external_services?.length || 0} External services • {topology?.egress?.connections?.length || 0} Active connections
           </div>
         </button>
       </div>
