@@ -129,6 +129,12 @@ To fix:
 4. Or ensure running in a Kubernetes pod with proper ServiceAccount`,
 					resolvedPath, err, inClusterErr, defaultPath)
 			}
+		} else if contextName == "" {
+			// Successfully loaded kubeconfig, try to get current context name
+			rawConfig, err := clientConfig.RawConfig()
+			if err == nil {
+				contextName = rawConfig.CurrentContext
+			}
 		}
 	}
 
