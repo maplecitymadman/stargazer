@@ -36,7 +36,7 @@ class ErrorBoundary extends Component<Props, State> {
       const errorMessage = this.state.error?.message || 'An unexpected error occurred';
       const isNetworkError = errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('Failed to fetch');
       const isTimeoutError = errorMessage.includes('timeout') || errorMessage.includes('timed out');
-      
+
       return (
         <div className="card rounded-lg p-8 text-center max-w-md mx-auto">
           <Icon name="critical" className="text-[#ef4444] text-4xl mb-4 mx-auto" />
@@ -44,7 +44,7 @@ class ErrorBoundary extends Component<Props, State> {
           <p className="text-[#71717a] mb-2 text-sm">
             {errorMessage}
           </p>
-          
+
           {/* Specific error guidance */}
           {isNetworkError && (
             <div className="mb-4 p-3 bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded text-left text-xs text-[#f59e0b]">
@@ -54,7 +54,7 @@ class ErrorBoundary extends Component<Props, State> {
               <p>• Try refreshing the page</p>
             </div>
           )}
-          
+
           {isTimeoutError && (
             <div className="mb-4 p-3 bg-[#f59e0b]/10 border border-[#f59e0b]/20 rounded text-left text-xs text-[#f59e0b]">
               <p className="font-semibold mb-1">Request Timed Out</p>
@@ -63,7 +63,7 @@ class ErrorBoundary extends Component<Props, State> {
               <p>• Check cluster connectivity</p>
             </div>
           )}
-          
+
           <div className="flex gap-3 justify-center mt-6">
             <button
               onClick={() => {

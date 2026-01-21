@@ -22,26 +22,26 @@ interface NavSection {
   subsections?: { id: string; label: string }[];
 }
 
-export default function Navigation({ 
-  currentSection, 
+export default function Navigation({
+  currentSection,
   currentSubsection,
-  onSectionChange, 
-  namespace, 
-  onNamespaceChange, 
-  onContextChange 
+  onSectionChange,
+  namespace,
+  onNamespaceChange,
+  onContextChange
 }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set([currentSection]));
 
   const sections: NavSection[] = [
-    { 
-      id: 'dashboard', 
-      label: 'Dashboard', 
-      icon: 'info' as const 
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: 'info' as const
     },
-    { 
-      id: 'traffic-analysis', 
-      label: 'Traffic Analysis', 
+    {
+      id: 'traffic-analysis',
+      label: 'Traffic Analysis',
       icon: 'network' as const,
       subsections: [
         { id: 'topology', label: 'Service Topology' },
@@ -50,9 +50,9 @@ export default function Navigation({
         { id: 'egress', label: 'Egress Traffic' },
       ]
     },
-    { 
-      id: 'network-policies', 
-      label: 'Network Policies', 
+    {
+      id: 'network-policies',
+      label: 'Network Policies',
       icon: 'scan' as const,
       subsections: [
         { id: 'view', label: 'View Policies' },
@@ -60,33 +60,33 @@ export default function Navigation({
         { id: 'test', label: 'Test Policy' },
       ]
     },
-    { 
-      id: 'compliance', 
-      label: 'Compliance', 
+    {
+      id: 'compliance',
+      label: 'Compliance',
       icon: 'scan' as const,
       subsections: [
         { id: 'score', label: 'Compliance Score' },
         { id: 'recommendations', label: 'Recommendations' },
       ]
     },
-    { 
-      id: 'troubleshooting', 
-      label: 'Troubleshooting', 
+    {
+      id: 'troubleshooting',
+      label: 'Troubleshooting',
       icon: 'critical' as const,
       subsections: [
         { id: 'blocked', label: 'Blocked Connections' },
         { id: 'services', label: 'Services with Issues' },
       ]
     },
-    { 
-      id: 'events', 
-      label: 'Events', 
-      icon: 'events' as const 
+    {
+      id: 'events',
+      label: 'Events',
+      icon: 'events' as const
     },
-    { 
-      id: 'settings', 
-      label: 'Settings', 
-      icon: 'info' as const 
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: 'info' as const
     },
   ];
 
@@ -127,8 +127,8 @@ export default function Navigation({
             </div>
             <div className="space-y-2">
               <ContextSelector onContextChange={onContextChange} />
-              <NamespaceSelector 
-                currentNamespace={namespace} 
+              <NamespaceSelector
+                currentNamespace={namespace}
                 onNamespaceChange={onNamespaceChange}
               />
             </div>

@@ -14,12 +14,12 @@ class Stargazer < Formula
 
   def install
     # Build the binary
-    system "go", "build", "-ldflags", "-s -w -X main.version=#{version}", 
+    system "go", "build", "-ldflags", "-s -w -X main.version=#{version}",
            "-o", bin/"stargazer", "cmd/stargazer/main.go"
-    
+
     # Create config directory
     (buildpath/".stargazer").mkpath
-    
+
     # Generate man pages (if you have them)
     # system "go", "run", "cmd/docs/main.go", "--man", man1
   end
@@ -27,7 +27,7 @@ class Stargazer < Formula
   test do
     # Test that the binary works
     system "#{bin}/stargazer", "--version"
-    
+
     # Test that it can at least show help
     system "#{bin}/stargazer", "--help"
   end

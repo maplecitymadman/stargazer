@@ -57,7 +57,7 @@ export default function ContextSelector({ onContextChange }: ContextSelectorProp
       setIsOpen(false);
       setPendingContext(null);
       toast.success(`Switched to cluster: ${pendingContext}`);
-      
+
       // Reload page to refresh all data
       if (onContextChange) {
         onContextChange();

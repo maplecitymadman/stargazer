@@ -50,7 +50,7 @@ export default function PathTracer({ namespace }: PathTracerProps) {
   const filteredSourceServices = useMemo(() => {
     if (!sourceSearch) return services;
     const search = sourceSearch.toLowerCase();
-    return services.filter(s => 
+    return services.filter(s =>
       s.display.toLowerCase().includes(search) ||
       s.name.toLowerCase().includes(search) ||
       s.type.toLowerCase().includes(search)
@@ -60,7 +60,7 @@ export default function PathTracer({ namespace }: PathTracerProps) {
   const filteredDestServices = useMemo(() => {
     if (!destinationSearch) return services;
     const search = destinationSearch.toLowerCase();
-    return services.filter(s => 
+    return services.filter(s =>
       s.display.toLowerCase().includes(search) ||
       s.name.toLowerCase().includes(search) ||
       s.type.toLowerCase().includes(search)
@@ -89,19 +89,19 @@ export default function PathTracer({ namespace }: PathTracerProps) {
 
   const handleTrace = async () => {
     if (!source || !destination) return;
-    
+
     setTracing(true);
     try {
       const result = await apiClient.tracePath(source, destination, namespace);
       setTraceResult(result);
     } catch (error) {
       console.error('Error tracing path:', error);
-      setTraceResult({ 
-        source, 
-        destination, 
-        path: [], 
-        allowed: false, 
-        reason: 'Failed to trace path' 
+      setTraceResult({
+        source,
+        destination,
+        path: [],
+        allowed: false,
+        reason: 'Failed to trace path'
       });
     } finally {
       setTracing(false);
@@ -122,7 +122,7 @@ export default function PathTracer({ namespace }: PathTracerProps) {
           Refresh Services
         </button>
       </div>
-      
+
       <div className="space-y-4">
         {/* Source Selection */}
         <div className="relative">
@@ -171,7 +171,7 @@ export default function PathTracer({ namespace }: PathTracerProps) {
             )}
           </div>
         </div>
-        
+
         {/* Destination Selection */}
         <div className="relative">
           <label className="block text-sm text-[#71717a] mb-2">Destination</label>
@@ -219,7 +219,7 @@ export default function PathTracer({ namespace }: PathTracerProps) {
             )}
           </div>
         </div>
-        
+
         <button
           onClick={handleTrace}
           disabled={tracing || !source || !destination}
@@ -239,7 +239,7 @@ export default function PathTracer({ namespace }: PathTracerProps) {
           )}
         </button>
       </div>
-      
+
       {traceResult && (
         <div className="mt-6 p-4 bg-[#1a1a24] rounded-lg border border-[rgba(255,255,255,0.08)]">
           <div className={`flex items-center gap-2 mb-3 ${traceResult.allowed ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
@@ -248,11 +248,11 @@ export default function PathTracer({ namespace }: PathTracerProps) {
               {traceResult.allowed ? 'Path Allowed' : 'Path Blocked'}
             </span>
           </div>
-          
+
           {traceResult.reason && (
             <p className="text-sm text-[#71717a] mb-4">{traceResult.reason}</p>
           )}
-          
+
           {traceResult.path && traceResult.path.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-[#e4e4e7]">Path Hops:</h3>
@@ -290,8 +290,8 @@ export default function PathTracer({ namespace }: PathTracerProps) {
                           )}
                         </div>
                         <span className={`text-xs px-2 py-1 rounded ${
-                          hop.allowed 
-                            ? 'bg-[#10b981]/20 text-[#10b981]' 
+                          hop.allowed
+                            ? 'bg-[#10b981]/20 text-[#10b981]'
                             : 'bg-[#ef4444]/20 text-[#ef4444]'
                         }`}>
                           {hop.allowed ? 'ALLOWED' : 'BLOCKED'}

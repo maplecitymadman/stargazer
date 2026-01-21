@@ -117,9 +117,9 @@ export default function NamespaceSelector({ currentNamespace, onNamespaceChange 
                   View resources across entire cluster
                 </div>
               </button>
-              
+
               <div className="border-t border-[rgba(255,255,255,0.08)] my-2"></div>
-              
+
               {namespaces.map((ns) => (
                 <button
                   key={ns.name}

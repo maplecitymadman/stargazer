@@ -241,7 +241,7 @@ export default function OverviewPage({ section, namespace, onNavigate }: Overvie
   if (section === 'troubleshooting') {
     const summary = data?.summary || {};
     const connectivity = data?.connectivity || {};
-    const servicesWithIssues = Object.values(connectivity).filter((conn: any) => 
+    const servicesWithIssues = Object.values(connectivity).filter((conn: any) =>
       conn.blocked_from && conn.blocked_from.length > 0
     ).length;
     return (

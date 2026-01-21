@@ -5,7 +5,7 @@ import axios from 'axios';
 
 // In Wails desktop app, API runs on localhost:8000
 // In browser dev mode, use empty string for same origin
-const API_BASE = typeof window !== 'undefined' 
+const API_BASE = typeof window !== 'undefined'
 	? (window.location.hostname === 'localhost' && window.location.port !== '8000' ? 'http://localhost:8000' : '')
 	: 'http://localhost:8000';
 

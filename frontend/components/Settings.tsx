@@ -48,14 +48,14 @@ function KubeconfigSettings({ config, onUpdate }: { config: any; onUpdate: () =>
       setSuccess(false);
 
       await apiClient.setKubeconfig(kubeconfigPath.trim());
-      
+
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-      
+
       // Reload status
       await loadKubeconfigStatus();
       onUpdate();
-      
+
       // Reload page to reconnect
       setTimeout(() => {
         window.location.reload();
@@ -98,7 +98,7 @@ function KubeconfigSettings({ config, onUpdate }: { config: any; onUpdate: () =>
     <div className="space-y-6">
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-[#e4e4e7] mb-4">Kubernetes Configuration</h2>
-        
+
         {/* Status Display */}
         {kubeconfigStatus && (
           <div className={`mb-4 p-3 rounded-md border ${
@@ -260,7 +260,7 @@ function ProviderConfig({ provider, config, onUpdate }: { provider: any; config:
   const [showApiKeyInput, setShowApiKeyInput] = useState(!hasApiKey && isEnabled);
   const [savingApiKey, setSavingApiKey] = useState(false);
   const [sopsAvailable] = useState(config?.sops_available || false);
-  
+
   // Update selectedModel when currentModel changes
   useEffect(() => {
     if (currentModel) {
@@ -269,14 +269,14 @@ function ProviderConfig({ provider, config, onUpdate }: { provider: any; config:
       setSelectedModel(provider.models[0]);
     }
   }, [currentModel, provider.models]);
-  
+
   // Show API key input when enabling if no key is set
   useEffect(() => {
     if (isEnabled && !hasApiKey) {
       setShowApiKeyInput(true);
     }
   }, [isEnabled, hasApiKey]);
-  
+
   return (
     <div className="p-4 rounded-md bg-[#1a1a24] border border-[rgba(255,255,255,0.08)]">
       <div className="flex items-center justify-between mb-3">
@@ -292,20 +292,20 @@ function ProviderConfig({ provider, config, onUpdate }: { provider: any; config:
             checked={isEnabled}
             onChange={async (e) => {
               const willBeEnabled = e.target.checked;
-              
+
               try {
                 await apiClient.enableProvider(provider.key, willBeEnabled);
-                
+
                 // If enabling, show API key input if no key is set
                 if (willBeEnabled && !hasApiKey) {
                   setShowApiKeyInput(true);
                 }
-                
+
                 // If disabling, hide API key input
                 if (!willBeEnabled) {
                   setShowApiKeyInput(false);
                 }
-                
+
                 onUpdate();
               } catch (error) {
                 if (process.env.NODE_ENV === 'development') {
@@ -319,7 +319,7 @@ function ProviderConfig({ provider, config, onUpdate }: { provider: any; config:
           <span className="text-xs text-[#71717a]">Enabled</span>
         </label>
       </div>
-      
+
       {isEnabled && (
         <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] space-y-4">
           {/* API Key Configuration */}
@@ -460,7 +460,7 @@ export default function Settings({ onClose }: SettingsProps) {
   useEffect(() => {
     loadSettings();
     loadTheme();
-    
+
     // Listen for tab change events from other components (e.g., when clicking "Configure" from dashboard)
     const handleTabChange = (e: CustomEvent) => {
       if (e.detail === 'cluster') {
@@ -481,7 +481,7 @@ export default function Settings({ onClose }: SettingsProps) {
 
   const applyTheme = (newTheme: Theme) => {
     const root = document.documentElement;
-    
+
     if (newTheme === 'auto') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       root.classList.toggle('light', !prefersDark);
@@ -490,14 +490,14 @@ export default function Settings({ onClose }: SettingsProps) {
       root.classList.remove('light', 'dark');
       root.classList.add(newTheme);
     }
-    
+
     localStorage.setItem('stargazer-theme', newTheme);
   };
 
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
     applyTheme(newTheme);
-    
+
     // Dispatch custom event so main app can update
     window.dispatchEvent(new CustomEvent('theme-change', { detail: newTheme }));
   };
@@ -508,7 +508,7 @@ export default function Settings({ onClose }: SettingsProps) {
       // Load config from API
       const providersConfig = await apiClient.getProvidersConfig();
       setConfig(providersConfig);
-      
+
       // Also load from local storage for UI preferences
       const savedConfig = localStorage.getItem('stargazer-config');
       if (savedConfig) {
@@ -594,7 +594,7 @@ export default function Settings({ onClose }: SettingsProps) {
         <div className="space-y-6">
           <div className="card p-6">
             <h2 className="text-lg font-semibold text-[#e4e4e7] mb-4">Appearance</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">
@@ -629,7 +629,7 @@ export default function Settings({ onClose }: SettingsProps) {
 
           <div className="card p-6">
             <h2 className="text-lg font-semibold text-[#e4e4e7] mb-4">Dashboard</h2>
-            
+
             <div className="space-y-4">
               <label className="flex items-center justify-between">
                 <div>
@@ -642,7 +642,7 @@ export default function Settings({ onClose }: SettingsProps) {
                   className="w-5 h-5 rounded border-[rgba(255,255,255,0.2)] bg-[#1a1a24] text-[#3b82f6] focus:ring-[#3b82f6]"
                 />
               </label>
-              
+
               <label className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-[#a1a1aa]">Show notifications</div>
@@ -667,7 +667,7 @@ export default function Settings({ onClose }: SettingsProps) {
             <p className="text-sm text-[#71717a] mb-4">
               Configure AI providers and models for troubleshooting. API keys are set via environment variables.
             </p>
-            
+
             <div className="space-y-4">
               {[
                 { name: 'OpenAI', key: 'openai', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
@@ -686,7 +686,7 @@ export default function Settings({ onClose }: SettingsProps) {
                 />
               ))}
             </div>
-            
+
             <div className="mt-4 p-3 rounded-md bg-[#3b82f6]/10 border border-[#3b82f6]/20">
               <p className="text-xs text-[#3b82f6]">
                 💡 Tip: Set API keys via environment variables (e.g., OPENAI_API_KEY) or run <code className="bg-[#1a1a24] px-1 rounded">stargazer setup</code> in terminal
@@ -706,7 +706,7 @@ export default function Settings({ onClose }: SettingsProps) {
         <div className="space-y-6">
           <div className="card p-6">
             <h2 className="text-lg font-semibold text-[#e4e4e7] mb-4">Advanced Options</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[#a1a1aa] mb-2">

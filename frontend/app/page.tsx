@@ -34,13 +34,13 @@ export default function Home() {
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('stargazer-theme') || 'dark';
     applyTheme(savedTheme as 'dark' | 'light' | 'auto');
-    
+
     // Listen for theme changes from Settings
     const handleThemeChange = (e: CustomEvent) => {
       applyTheme(e.detail);
     };
     window.addEventListener('theme-change', handleThemeChange as EventListener);
-    
+
     // Listen for system theme changes when in auto mode
     const setupAutoTheme = () => {
       const currentTheme = localStorage.getItem('stargazer-theme') || 'dark';
@@ -57,7 +57,7 @@ export default function Home() {
       return () => {};
     };
     const cleanupAuto = setupAutoTheme();
-    
+
     loadInitialData();
     setupWebSocket();
 
@@ -129,7 +129,7 @@ export default function Home() {
   const loadInitialData = async (preserveNamespace: boolean = false) => {
     try {
       setLoading(true);
-      
+
       // Use 'all' as default namespace
       let currentNs = preserveNamespace ? namespace : 'all';
       if (!preserveNamespace) {
@@ -141,7 +141,7 @@ export default function Home() {
           currentNs = namespace;
         }
       }
-      
+
       // Now load health with the correct namespace
       const ns = currentNs === 'all' ? 'all' : currentNs || 'all';
       const healthData = await apiClient.getHealth(ns).catch(err => {
@@ -156,7 +156,7 @@ export default function Home() {
           overall_health: 'degraded' as const
         };
       });
-      
+
       setHealth(healthData);
       setInitialLoadComplete(true);
     } catch (error) {
@@ -185,10 +185,10 @@ export default function Home() {
   const setupWebSocket = (attempt: number = 1) => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
+
     try {
       const websocket = new WebSocket(wsUrl);
-      
+
       websocket.onopen = () => {
         setWs(websocket);
         // Reset attempt counter on successful connection
@@ -196,7 +196,7 @@ export default function Home() {
           console.log('[WebSocket] Reconnected successfully');
         }
       };
-      
+
       websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -210,11 +210,11 @@ export default function Home() {
           // Invalid JSON - ignore
         }
       };
-      
+
       websocket.onerror = () => {
         setWs(null);
       };
-      
+
       websocket.onclose = () => {
         setWs(null);
         // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
@@ -222,7 +222,7 @@ export default function Home() {
         const baseDelay = 1000;
         const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
         const maxAttempts = 10;
-        
+
         if (attempt < maxAttempts) {
           console.log(`[WebSocket] Connection closed, reconnecting in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
           setTimeout(() => setupWebSocket(attempt + 1), delay);
@@ -261,7 +261,7 @@ export default function Home() {
 
   const getBreadcrumbs = () => {
     const base = [{ label: 'DASHBOARD', onClick: () => handleSectionChange('dashboard') }];
-    
+
     // Map subsection IDs to labels
     const subsectionLabels: Record<string, Record<string, string>> = {
       'traffic-analysis': {
@@ -284,7 +284,7 @@ export default function Home() {
         'services': 'Services with Issues',
       },
     };
-    
+
     switch (currentSection) {
       case 'traffic-analysis':
         const taBase = [...base, { label: 'TRAFFIC ANALYSIS', onClick: () => handleSectionChange('traffic-analysis') }];
@@ -429,15 +429,15 @@ export default function Home() {
               {!loading && health && (
                 <>
                   <div className="mb-6">
-                    <HealthMetrics 
-                      health={health} 
+                    <HealthMetrics
+                      health={health}
                       namespace={namespace}
                       onEventsClick={() => {
                         setCurrentSection('events');
                       }}
                     />
                   </div>
-                  <Dashboard 
+                  <Dashboard
                     namespace={namespace}
                     onNavigate={(section, subsection) => handleSectionChange(section, subsection)}
                   />
@@ -482,8 +482,8 @@ export default function Home() {
             currentSubsection ? (
               <TrafficAnalysisPage subsection={currentSubsection} namespace={namespace} />
             ) : (
-              <OverviewPage 
-                section="traffic-analysis" 
+              <OverviewPage
+                section="traffic-analysis"
                 namespace={namespace}
                 onNavigate={(subsection) => handleSectionChange('traffic-analysis', subsection)}
               />
@@ -494,8 +494,8 @@ export default function Home() {
             currentSubsection ? (
               <NetworkPoliciesPage subsection={currentSubsection} namespace={namespace} />
             ) : (
-              <OverviewPage 
-                section="network-policies" 
+              <OverviewPage
+                section="network-policies"
                 namespace={namespace}
                 onNavigate={(subsection) => handleSectionChange('network-policies', subsection)}
               />
@@ -506,8 +506,8 @@ export default function Home() {
             currentSubsection ? (
               <CompliancePage subsection={currentSubsection} namespace={namespace} />
             ) : (
-              <OverviewPage 
-                section="compliance" 
+              <OverviewPage
+                section="compliance"
                 namespace={namespace}
                 onNavigate={(subsection) => handleSectionChange('compliance', subsection)}
               />
@@ -518,8 +518,8 @@ export default function Home() {
             currentSubsection ? (
               <TroubleshootingPage subsection={currentSubsection} namespace={namespace} />
             ) : (
-              <OverviewPage 
-                section="troubleshooting" 
+              <OverviewPage
+                section="troubleshooting"
                 namespace={namespace}
                 onNavigate={(subsection) => handleSectionChange('troubleshooting', subsection)}
               />

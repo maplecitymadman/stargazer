@@ -15,12 +15,12 @@ import (
 
 // CiliumNetworkPolicySpec represents a Cilium Network Policy specification
 type CiliumNetworkPolicySpec struct {
-	Name        string                 `json:"name"`
-	Namespace   string                 `json:"namespace"`
-	Description string                 `json:"description,omitempty"`
+	Name             string                 `json:"name"`
+	Namespace        string                 `json:"namespace"`
+	Description      string                 `json:"description,omitempty"`
 	EndpointSelector map[string]interface{} `json:"endpoint_selector,omitempty"`
-	Ingress     []CiliumIngressRule    `json:"ingress,omitempty"`
-	Egress      []CiliumEgressRule     `json:"egress,omitempty"`
+	Ingress          []CiliumIngressRule    `json:"ingress,omitempty"`
+	Egress           []CiliumEgressRule     `json:"egress,omitempty"`
 }
 
 // CiliumIngressRule represents an ingress rule for Cilium
@@ -36,14 +36,14 @@ type CiliumEgressRule struct {
 	ToEndpoints []map[string]interface{} `json:"to_endpoints,omitempty"`
 	ToCIDR      []string                 `json:"to_cidr,omitempty"`
 	ToEntities  []string                 `json:"to_entities,omitempty"`
-	ToPorts      []CiliumPortRule        `json:"to_ports,omitempty"`
-	ToServices   []map[string]interface{} `json:"to_services,omitempty"`
+	ToPorts     []CiliumPortRule         `json:"to_ports,omitempty"`
+	ToServices  []map[string]interface{} `json:"to_services,omitempty"`
 }
 
 // CiliumPortRule represents port rules for Cilium
 type CiliumPortRule struct {
-	Ports     []CiliumPortProtocol `json:"ports,omitempty"`
-	Rules     map[string]interface{} `json:"rules,omitempty"`
+	Ports []CiliumPortProtocol   `json:"ports,omitempty"`
+	Rules map[string]interface{} `json:"rules,omitempty"`
 }
 
 // CiliumPortProtocol represents port and protocol
@@ -54,29 +54,29 @@ type CiliumPortProtocol struct {
 
 // KyvernoPolicySpec represents a Kyverno Policy specification
 type KyvernoPolicySpec struct {
-	Name        string                 `json:"name"`
-	Namespace   string                 `json:"namespace,omitempty"` // Empty for ClusterPolicy
-	Type        string                 `json:"type"` // "Policy" or "ClusterPolicy"
-	Description string                 `json:"description,omitempty"`
-	Rules       []KyvernoRule          `json:"rules"`
-	Validation  bool                   `json:"validation,omitempty"`
-	Mutation    bool                   `json:"mutation,omitempty"`
-	Generation  bool                   `json:"generation,omitempty"`
+	Name        string        `json:"name"`
+	Namespace   string        `json:"namespace,omitempty"` // Empty for ClusterPolicy
+	Type        string        `json:"type"`                // "Policy" or "ClusterPolicy"
+	Description string        `json:"description,omitempty"`
+	Rules       []KyvernoRule `json:"rules"`
+	Validation  bool          `json:"validation,omitempty"`
+	Mutation    bool          `json:"mutation,omitempty"`
+	Generation  bool          `json:"generation,omitempty"`
 }
 
 // KyvernoRule represents a Kyverno policy rule
 type KyvernoRule struct {
-	Name          string                 `json:"name"`
-	MatchResources map[string]interface{} `json:"match_resources"`
+	Name             string                 `json:"name"`
+	MatchResources   map[string]interface{} `json:"match_resources"`
 	ExcludeResources map[string]interface{} `json:"exclude_resources,omitempty"`
-	Validate      map[string]interface{} `json:"validate,omitempty"`
-	Mutate        map[string]interface{} `json:"mutate,omitempty"`
-	Generate      map[string]interface{} `json:"generate,omitempty"`
+	Validate         map[string]interface{} `json:"validate,omitempty"`
+	Mutate           map[string]interface{} `json:"mutate,omitempty"`
+	Generate         map[string]interface{} `json:"generate,omitempty"`
 }
 
 // PolicyBuilder handles building and managing policies
 type PolicyBuilder struct {
-	clientset    kubernetes.Interface
+	clientset     kubernetes.Interface
 	dynamicClient dynamic.Interface
 }
 
@@ -94,7 +94,7 @@ func (pb *PolicyBuilder) BuildCiliumNetworkPolicy(ctx context.Context, spec Cili
 		"apiVersion": "cilium.io/v2",
 		"kind":       "CiliumNetworkPolicy",
 		"metadata": map[string]interface{}{
-			"name":      spec.Name,
+			"name": spec.Name,
 		},
 		"spec": map[string]interface{}{},
 	}

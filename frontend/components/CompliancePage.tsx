@@ -123,7 +123,7 @@ function ComplianceScore({ score, namespace }: { score: any; namespace?: string 
             {scoreValue}%
           </div>
         </div>
-        
+
         {/* Progress Bar */}
         <div className="mt-4 h-3 bg-[#1a1a24] rounded-full overflow-hidden">
           <div

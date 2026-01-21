@@ -331,20 +331,20 @@ func convertNode(n *corev1.Node) Node {
 	}
 
 	return Node{
-		Name:               n.Name,
-		Status:             status,
-		Roles:              roles,
-		Version:            n.Status.NodeInfo.KubeletVersion,
-		OS:                 n.Status.NodeInfo.OSImage,
-		ContainerRuntime:   n.Status.NodeInfo.ContainerRuntimeVersion,
-		CPUCapacity:        n.Status.Capacity.Cpu().String(),
-		MemoryCapacity:     n.Status.Capacity.Memory().String(),
-		PodCapacity:        n.Status.Capacity.Pods().String(),
-		CPUAllocatable:     n.Status.Allocatable.Cpu().String(),
-		MemoryAllocatable:  n.Status.Allocatable.Memory().String(),
-		PodAllocatable:     n.Status.Allocatable.Pods().String(),
-		Labels:             labels,
-		Age:                calculateAge(n.CreationTimestamp.Time),
+		Name:              n.Name,
+		Status:            status,
+		Roles:             roles,
+		Version:           n.Status.NodeInfo.KubeletVersion,
+		OS:                n.Status.NodeInfo.OSImage,
+		ContainerRuntime:  n.Status.NodeInfo.ContainerRuntimeVersion,
+		CPUCapacity:       n.Status.Capacity.Cpu().String(),
+		MemoryCapacity:    n.Status.Capacity.Memory().String(),
+		PodCapacity:       n.Status.Capacity.Pods().String(),
+		CPUAllocatable:    n.Status.Allocatable.Cpu().String(),
+		MemoryAllocatable: n.Status.Allocatable.Memory().String(),
+		PodAllocatable:    n.Status.Allocatable.Pods().String(),
+		Labels:            labels,
+		Age:               calculateAge(n.CreationTimestamp.Time),
 	}
 }
 

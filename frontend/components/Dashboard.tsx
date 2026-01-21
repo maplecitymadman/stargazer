@@ -52,7 +52,7 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
     ? Math.round((summary.allowed_connections / summary.total_connections) * 100)
     : 100;
 
-  const servicesWithIssues = topology ? Object.values(topology.connectivity || {}).filter((conn: any) => 
+  const servicesWithIssues = topology ? Object.values(topology.connectivity || {}).filter((conn: any) =>
     conn.blocked_from && conn.blocked_from.length > 0
   ).length : 0;
 
@@ -61,12 +61,12 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
     const meshCount = (conn.connections || []).filter((c: any) => c.via_service_mesh).length;
     return total + meshCount;
   }, 0) : 0;
-  
+
   // Calculate mTLS coverage - services with mesh that have strict mTLS
   const servicesWithMesh = summary.services_with_mesh || 0;
   const totalServices = summary.total_services || 0;
   const meshCoveragePercent = totalServices > 0 ? Math.round((servicesWithMesh / totalServices) * 100) : 0;
-  
+
   const ingressBlocked = topology?.ingress?.connections?.filter((c: any) => !c.allowed).length || 0;
   const egressBlocked = topology?.egress?.connections?.filter((c: any) => !c.allowed).length || 0;
 
@@ -83,10 +83,10 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         >
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-[#71717a]">Connection Health</div>
-            <Icon 
-              name={connectionHealth === 100 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"} 
-              className={connectionHealth === 100 ? "text-[#10b981]" : connectionHealth >= 80 ? "text-[#f59e0b]" : "text-[#ef4444]"} 
-              size="sm" 
+            <Icon
+              name={connectionHealth === 100 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"}
+              className={connectionHealth === 100 ? "text-[#10b981]" : connectionHealth >= 80 ? "text-[#f59e0b]" : "text-[#ef4444]"}
+              size="sm"
             />
           </div>
           <div className={`text-2xl font-bold ${
@@ -108,10 +108,10 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         >
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-[#71717a]">Service Mesh</div>
-            <Icon 
-              name={meshCoveragePercent >= 80 ? "healthy" : meshCoveragePercent >= 50 ? "degraded" : "info"} 
-              className={meshCoveragePercent >= 80 ? "text-[#10b981]" : meshCoveragePercent >= 50 ? "text-[#f59e0b]" : "text-[#71717a]"} 
-              size="sm" 
+            <Icon
+              name={meshCoveragePercent >= 80 ? "healthy" : meshCoveragePercent >= 50 ? "degraded" : "info"}
+              className={meshCoveragePercent >= 80 ? "text-[#10b981]" : meshCoveragePercent >= 50 ? "text-[#f59e0b]" : "text-[#71717a]"}
+              size="sm"
             />
           </div>
           <div className={`text-2xl font-bold ${
@@ -133,10 +133,10 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         >
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-[#71717a]">Policy Enforcement</div>
-            <Icon 
-              name={connectionHealth >= 95 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"} 
-              className={connectionHealth >= 95 ? "text-[#10b981]" : connectionHealth >= 80 ? "text-[#f59e0b]" : "text-[#ef4444]"} 
-              size="sm" 
+            <Icon
+              name={connectionHealth >= 95 ? "healthy" : connectionHealth >= 80 ? "degraded" : "critical"}
+              className={connectionHealth >= 95 ? "text-[#10b981]" : connectionHealth >= 80 ? "text-[#f59e0b]" : "text-[#ef4444]"}
+              size="sm"
             />
           </div>
           <div className={`text-2xl font-bold ${
@@ -158,10 +158,10 @@ export default function Dashboard({ namespace, onNavigate }: DashboardProps) {
         >
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-[#71717a]">Compliance</div>
-            <Icon 
-              name={(score?.score || 0) >= 80 ? "healthy" : (score?.score || 0) >= 60 ? "degraded" : "critical"} 
-              className={(score?.score || 0) >= 80 ? "text-[#10b981]" : (score?.score || 0) >= 60 ? "text-[#f59e0b]" : "text-[#ef4444]"} 
-              size="sm" 
+            <Icon
+              name={(score?.score || 0) >= 80 ? "healthy" : (score?.score || 0) >= 60 ? "degraded" : "critical"}
+              className={(score?.score || 0) >= 80 ? "text-[#10b981]" : (score?.score || 0) >= 60 ? "text-[#f59e0b]" : "text-[#ef4444]"}
+              size="sm"
             />
           </div>
           <div className={`text-2xl font-bold ${

@@ -100,24 +100,24 @@ header {
   .text-balance {
     text-wrap: balance;
   }
-  
+
   .card {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     transition: all 0.2s ease;
   }
-  
+
   .card-hover:hover {
     border-color: var(--border-hover);
     background: var(--bg-tertiary);
   }
-  
+
   .glass {
     background: rgba(17, 17, 24, 0.8);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }
-  
+
   .light .glass {
     background: rgba(255, 255, 255, 0.8);
   }

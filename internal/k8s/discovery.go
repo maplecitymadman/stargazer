@@ -158,10 +158,10 @@ func (d *Discovery) ScanPods(ctx context.Context, namespace string) ([]Issue, er
 				}
 
 				issues = append(issues, Issue{
-					ID:          GenerateIssueID(pod.Name, fmt.Sprintf("container-%s", cs.Name)),
-					Title:       fmt.Sprintf("Container %s in pod %s: %s", cs.Name, pod.Name, cs.Reason),
-					Description: fmt.Sprintf("Container is waiting: %s. %s", cs.Reason, cs.Message),
-					Priority:    priority,
+					ID:           GenerateIssueID(pod.Name, fmt.Sprintf("container-%s", cs.Name)),
+					Title:        fmt.Sprintf("Container %s in pod %s: %s", cs.Name, pod.Name, cs.Reason),
+					Description:  fmt.Sprintf("Container is waiting: %s. %s", cs.Reason, cs.Message),
+					Priority:     priority,
 					ResourceType: "pod",
 					ResourceName: pod.Name,
 					Namespace:    pod.Namespace,
@@ -186,10 +186,10 @@ func (d *Discovery) ScanPods(ctx context.Context, namespace string) ([]Issue, er
 		// Check readiness
 		if !pod.Ready && pod.Status == "Running" {
 			issues = append(issues, Issue{
-				ID:          GenerateIssueID(pod.Name, "readiness"),
-				Title:       fmt.Sprintf("Pod %s not ready", pod.Name),
-				Description: fmt.Sprintf("Pod is running but readiness probe is failing. Check logs and probe configuration. Run: kubectl describe pod %s -n %s to see probe details.", pod.Name, pod.Namespace),
-				Priority:    PriorityWarning,
+				ID:           GenerateIssueID(pod.Name, "readiness"),
+				Title:        fmt.Sprintf("Pod %s not ready", pod.Name),
+				Description:  fmt.Sprintf("Pod is running but readiness probe is failing. Check logs and probe configuration. Run: kubectl describe pod %s -n %s to see probe details.", pod.Name, pod.Namespace),
+				Priority:     PriorityWarning,
 				ResourceType: "pod",
 				ResourceName: pod.Name,
 				Namespace:    pod.Namespace,
@@ -213,10 +213,10 @@ func (d *Discovery) ScanDeployments(ctx context.Context, namespace string) ([]Is
 		// Check replica mismatches
 		if deployment.Replicas != deployment.ReadyReplicas {
 			issues = append(issues, Issue{
-				ID:          GenerateIssueID(deployment.Name, "replicas"),
-				Title:       fmt.Sprintf("Replica mismatch in %s", deployment.Name),
-				Description: fmt.Sprintf("Expected %d replicas, %d ready", deployment.Replicas, deployment.ReadyReplicas),
-				Priority:    PriorityWarning,
+				ID:           GenerateIssueID(deployment.Name, "replicas"),
+				Title:        fmt.Sprintf("Replica mismatch in %s", deployment.Name),
+				Description:  fmt.Sprintf("Expected %d replicas, %d ready", deployment.Replicas, deployment.ReadyReplicas),
+				Priority:     PriorityWarning,
 				ResourceType: "deployment",
 				ResourceName: deployment.Name,
 				Namespace:    deployment.Namespace,
@@ -231,10 +231,10 @@ func (d *Discovery) ScanDeployments(ctx context.Context, namespace string) ([]Is
 			}
 
 			issues = append(issues, Issue{
-				ID:          GenerateIssueID(deployment.Name, "availability"),
-				Title:       fmt.Sprintf("Deployment %s unavailable", deployment.Name),
-				Description: fmt.Sprintf("Only %d of %d replicas available", deployment.AvailableReplicas, deployment.Replicas),
-				Priority:    priority,
+				ID:           GenerateIssueID(deployment.Name, "availability"),
+				Title:        fmt.Sprintf("Deployment %s unavailable", deployment.Name),
+				Description:  fmt.Sprintf("Only %d of %d replicas available", deployment.AvailableReplicas, deployment.Replicas),
+				Priority:     priority,
 				ResourceType: "deployment",
 				ResourceName: deployment.Name,
 				Namespace:    deployment.Namespace,

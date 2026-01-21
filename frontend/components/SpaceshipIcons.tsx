@@ -8,13 +8,13 @@ export const Icons = {
   critical: '▴',
   warning: '▾',
   info: '▸',
-  
+
   // Actions
   refresh: '⟐',
   scan: '◉',
   execute: '▸',
   loading: '⟐',
-  
+
   // Systems
   pods: '▸',
   deployments: '◈',
@@ -27,10 +27,10 @@ export const Icons = {
   connections: '⟐',
   check: '◉',
   close: '✕',
-  
+
   // Navigation
   all: '◈',
-  
+
   // Branding
   logo: '◈',
   stargazer: '◈',
@@ -48,7 +48,7 @@ export function Icon({ name, className = '', size = 'md' }: IconProps) {
     md: 'text-base',
     lg: 'text-lg',
   };
-  
+
   return (
     <span className={`inline-block ${sizeClasses[size]} ${className}`}>
       {Icons[name]}

@@ -115,13 +115,13 @@ func NewClient(kubeconfigPath, contextName, namespace string) (*Client, error) {
 				}
 
 				return nil, fmt.Errorf(`failed to load Kubernetes configuration:
-				
+
 Tried kubeconfig: %s
   Error: %v
-				
+
 Tried in-cluster config:
   Error: %v
-				
+
 To fix:
 1. Set kubeconfig path in Settings → Cluster
 2. Or ensure kubeconfig exists at: %s

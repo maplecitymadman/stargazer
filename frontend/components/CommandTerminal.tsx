@@ -47,7 +47,7 @@ export default function CommandTerminal() {
     try {
       const result = await apiClient.executeCommand(command, selectedAgent);
       setResponse(result);
-      
+
       // Add to history
       const newHistory: CommandHistory = {
         time: new Date(),
@@ -56,10 +56,10 @@ export default function CommandTerminal() {
         response: result,
       };
       setHistory(prev => [...prev.slice(-9), newHistory]);
-      
+
       // Reload agents to get updated current agent
       await loadAgents();
-      
+
       // Clear command
       setCommand('');
     } catch (error: any) {
@@ -82,7 +82,7 @@ export default function CommandTerminal() {
         <Icon name="terminal" className="text-[#71717a]" size="sm" />
         <span>Command Terminal</span>
       </h2>
-      
+
       {/* Agent and Command Input */}
       <div className="flex gap-2 mb-4">
         <select
@@ -96,7 +96,7 @@ export default function CommandTerminal() {
             </option>
           ))}
         </select>
-        
+
         <input
           type="text"
           value={command}
@@ -105,7 +105,7 @@ export default function CommandTerminal() {
           placeholder={`Enter command for @${selectedAgent}...`}
           className="flex-1 px-4 py-2 bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] rounded-md text-[#e4e4e7] placeholder-[#71717a] focus:ring-2 focus:ring-[#3b82f6] focus:border-[#3b82f6] text-sm"
         />
-        
+
         <button
           onClick={executeCommand}
           disabled={loading || !command.trim()}

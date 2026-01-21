@@ -194,14 +194,14 @@ function BuildPolicy({ namespace }: { namespace?: string }) {
 
   const toggleService = (serviceKey: string, isBlocked: boolean) => {
     if (isBlocked) {
-      setSelectedBlocked(prev => 
-        prev.includes(serviceKey) 
+      setSelectedBlocked(prev =>
+        prev.includes(serviceKey)
           ? prev.filter(s => s !== serviceKey)
           : [...prev, serviceKey]
       );
     } else {
-      setSelectedServices(prev => 
-        prev.includes(serviceKey) 
+      setSelectedServices(prev =>
+        prev.includes(serviceKey)
           ? prev.filter(s => s !== serviceKey)
           : [...prev, serviceKey]
       );

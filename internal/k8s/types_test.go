@@ -174,15 +174,15 @@ func TestServiceStructure(t *testing.T) {
 func TestEventStructure(t *testing.T) {
 	now := time.Now()
 	event := Event{
-		Type:               "Warning",
-		Reason:             "BackOff",
-		Message:            "Back-off restarting failed container",
-		InvolvedObject:     "pod/test-pod",
-		InvolvedKind:       "Pod",
-		InvolvedNamespace:  "default",
-		FirstTimestamp:     now,
-		LastTimestamp:      now.Add(5 * time.Minute),
-		Count:              5,
+		Type:              "Warning",
+		Reason:            "BackOff",
+		Message:           "Back-off restarting failed container",
+		InvolvedObject:    "pod/test-pod",
+		InvolvedKind:      "Pod",
+		InvolvedNamespace: "default",
+		FirstTimestamp:    now,
+		LastTimestamp:     now.Add(5 * time.Minute),
+		Count:             5,
 	}
 
 	if event.Type != "Warning" {

@@ -18,22 +18,22 @@ type NetworkingBestPractice struct {
 
 // Recommendation represents a specific recommendation for the cluster
 type Recommendation struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Severity    string `json:"severity"`
-	Service     string `json:"service,omitempty"` // Optional: specific service this applies to
-	Namespace   string `json:"namespace,omitempty"`
+	ID          string            `json:"id"`
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Category    string            `json:"category"`
+	Severity    string            `json:"severity"`
+	Service     string            `json:"service,omitempty"` // Optional: specific service this applies to
+	Namespace   string            `json:"namespace,omitempty"`
 	Fix         FixRecommendation `json:"fix"`
-	Impact      string `json:"impact"` // What will improve if applied
+	Impact      string            `json:"impact"` // What will improve if applied
 }
 
 // FixRecommendation provides the fix for a recommendation
 type FixRecommendation struct {
-	Type        string   `json:"type"`        // "networkpolicy", "ciliumpolicy", "istiopolicy", "ingress", "egress"
-	Template    string   `json:"template"`    // YAML template
-	Command     string   `json:"command,omitempty"`     // Optional: kubectl command
+	Type        string   `json:"type"`                   // "networkpolicy", "ciliumpolicy", "istiopolicy", "ingress", "egress"
+	Template    string   `json:"template"`               // YAML template
+	Command     string   `json:"command,omitempty"`      // Optional: kubectl command
 	ManualSteps []string `json:"manual_steps,omitempty"` // Steps if manual intervention needed
 }
 
@@ -74,10 +74,10 @@ func (c *Client) GetComplianceScore(ctx context.Context, topology *TopologyData)
 	}
 
 	return score, map[string]interface{}{
-		"score":                score,
-		"passed":               passedChecks,
-		"total":                totalChecks,
-		"check_details":       details,
+		"score":                 score,
+		"passed":                passedChecks,
+		"total":                 totalChecks,
+		"check_details":         details,
 		"recommendations_count": len(recommendations),
 	}
 }
@@ -100,12 +100,12 @@ var BestPractices = []NetworkingBestPractice{
 				"kube-system":     true,
 				"kube-public":     true,
 				"kube-node-lease": true,
-				"istio-system":   true,
+				"istio-system":    true,
 			}
 
 			for serviceKey, service := range topology.Services {
 				// Skip system namespaces
-				if skipNamespaces[service.Namespace] || 
+				if skipNamespaces[service.Namespace] ||
 					strings.HasPrefix(service.Namespace, "kube-") ||
 					strings.HasPrefix(service.Namespace, "istio-") {
 					continue
@@ -113,7 +113,7 @@ var BestPractices = []NetworkingBestPractice{
 
 				hasK8sPolicy := false
 				hasCiliumPolicy := false
-				
+
 				// Check for K8s NetworkPolicy
 				for _, np := range topology.NetworkPolicies {
 					if np.Namespace == service.Namespace {
@@ -121,7 +121,7 @@ var BestPractices = []NetworkingBestPractice{
 						break
 					}
 				}
-				
+
 				// Check for Cilium NetworkPolicy (if Cilium is enabled)
 				if topology.Infrastructure.CiliumEnabled {
 					for _, cnp := range topology.CiliumPolicies {
@@ -134,13 +134,13 @@ var BestPractices = []NetworkingBestPractice{
 
 				if !hasK8sPolicy && !hasCiliumPolicy {
 					servicesWithoutPolicy++
-					
+
 					// Analyze actual connections to provide specific recommendation
 					connectivity, hasConnections := topology.Connectivity[serviceKey]
 					connectionCount := 0
 					ingressConnections := 0
 					egressConnections := 0
-					
+
 					if hasConnections {
 						connectionCount = len(connectivity.Connections)
 						for _, conn := range connectivity.Connections {
@@ -154,11 +154,11 @@ var BestPractices = []NetworkingBestPractice{
 							}
 						}
 					}
-					
+
 					// Generate appropriate policy based on infrastructure and actual connections
 					var fixType string
 					var template string
-					
+
 					if topology.Infrastructure.CiliumEnabled {
 						fixType = "ciliumpolicy"
 						template = generateCiliumNetworkPolicy(service, topology)
@@ -166,7 +166,7 @@ var BestPractices = []NetworkingBestPractice{
 						fixType = "networkpolicy"
 						template = generateK8sNetworkPolicy(service, topology)
 					}
-					
+
 					description := fmt.Sprintf("Service %s/%s has no %s", service.Namespace, service.Name, fixType)
 					if hasConnections {
 						description += fmt.Sprintf(". This service has %d active connections (%d ingress, %d egress) that should be protected by policy.", connectionCount, ingressConnections, egressConnections)
@@ -176,7 +176,7 @@ var BestPractices = []NetworkingBestPractice{
 					if topology.Infrastructure.IstioEnabled {
 						description += " This works alongside Istio AuthorizationPolicies for defense in depth."
 					}
-					
+
 					recommendations = append(recommendations, Recommendation{
 						ID:          fmt.Sprintf("np-001-%s", serviceKey),
 						Title:       fmt.Sprintf("Service %s/%s lacks network policy", service.Namespace, service.Name),
@@ -232,7 +232,7 @@ var BestPractices = []NetworkingBestPractice{
 							Severity:    "critical",
 							Namespace:   ing.Namespace,
 							Fix: FixRecommendation{
-								Type: "ingress",
+								Type:     "ingress",
 								Template: generateTLSIngress(ing, hasCertManager),
 								ManualSteps: []string{
 									"1. Ensure cert-manager is installed (check cert-manager namespace)",
@@ -276,7 +276,7 @@ var BestPractices = []NetworkingBestPractice{
 				if !hasPeerAuth {
 					description = "Istio is detected but no PeerAuthentication found. Create one with STRICT mTLS mode."
 				}
-				
+
 				recommendations = append(recommendations, Recommendation{
 					ID:          "istio-mtls-001",
 					Title:       "Enable STRICT mTLS mode in Istio",
@@ -284,7 +284,7 @@ var BestPractices = []NetworkingBestPractice{
 					Category:    "security",
 					Severity:    "high",
 					Fix: FixRecommendation{
-						Type: "istiopolicy",
+						Type:     "istiopolicy",
 						Template: generateStrictMTLSPolicy(),
 						ManualSteps: []string{
 							"1. Start with PERMISSIVE mode to verify all services work",
@@ -327,7 +327,7 @@ var BestPractices = []NetworkingBestPractice{
 						Category:    "security",
 						Severity:    "high",
 						Fix: FixRecommendation{
-							Type: "istiopolicy",
+							Type:     "istiopolicy",
 							Template: generateRestrictiveAuthzPolicy(),
 							ManualSteps: []string{
 								"1. Identify which services need to communicate",
@@ -361,7 +361,7 @@ var BestPractices = []NetworkingBestPractice{
 					Category:    "security",
 					Severity:    "medium",
 					Fix: FixRecommendation{
-						Type: "egress",
+						Type:     "egress",
 						Template: generateEgressGatewayConfig(),
 						ManualSteps: []string{
 							"1. Deploy Istio EgressGateway (if not already deployed)",
@@ -391,7 +391,7 @@ var BestPractices = []NetworkingBestPractice{
 				// Check if they're using Cilium policies
 				ciliumPolicyCount := len(topology.CiliumPolicies)
 				k8sPolicyCount := len(topology.NetworkPolicies)
-				
+
 				// If they have Cilium but are only using K8s NetworkPolicies, recommend CNPs
 				if ciliumPolicyCount == 0 && k8sPolicyCount > 0 {
 					recommendations = append(recommendations, Recommendation{
@@ -401,7 +401,7 @@ var BestPractices = []NetworkingBestPractice{
 						Category:    "security",
 						Severity:    "medium",
 						Fix: FixRecommendation{
-							Type: "ciliumpolicy",
+							Type:     "ciliumpolicy",
 							Template: generateCiliumPolicyExample(),
 							ManualSteps: []string{
 								"1. Review existing K8s NetworkPolicies",
@@ -429,7 +429,7 @@ var BestPractices = []NetworkingBestPractice{
 
 			if topology.Infrastructure.KyvernoEnabled {
 				kyvernoPolicyCount := len(topology.KyvernoPolicies)
-				
+
 				if kyvernoPolicyCount == 0 {
 					recommendations = append(recommendations, Recommendation{
 						ID:          "kyverno-001",
@@ -438,7 +438,7 @@ var BestPractices = []NetworkingBestPractice{
 						Category:    "security",
 						Severity:    "medium",
 						Fix: FixRecommendation{
-							Type: "kyverno",
+							Type:     "kyverno",
 							Template: generateKyvernoNetworkPolicyPolicy(),
 							ManualSteps: []string{
 								"1. Create Kyverno ClusterPolicy to require NetworkPolicies",
@@ -474,7 +474,7 @@ var BestPractices = []NetworkingBestPractice{
 						Category:    "observability",
 						Severity:    "medium",
 						Fix: FixRecommendation{
-							Type: "istio",
+							Type:     "istio",
 							Template: generateIstioInjectionConfig(),
 							ManualSteps: []string{
 								"1. Enable Istio sidecar injection for namespaces",
@@ -503,7 +503,7 @@ var BestPractices = []NetworkingBestPractice{
 
 			// Analyze actual blocked connections and provide specific fixes
 			blockedConnections := make(map[string][]ServiceConnection) // service -> blocked connections
-			
+
 			for serviceKey, connectivity := range topology.Connectivity {
 				for _, conn := range connectivity.Connections {
 					if conn.BlockedByPolicy || !conn.Allowed {
@@ -514,53 +514,53 @@ var BestPractices = []NetworkingBestPractice{
 					}
 				}
 			}
-			
+
 			// Generate specific recommendations for each blocked connection
 			for serviceKey, blocked := range blockedConnections {
 				if len(blocked) == 0 {
 					continue
 				}
-				
+
 				serviceNs, serviceName, _ := ParseServiceKey(serviceKey)
 				service, serviceExists := topology.Services[serviceKey]
 				if !serviceExists {
 					continue
 				}
-				
+
 				// Group blocked connections by target
 				blockedByTarget := make(map[string][]ServiceConnection)
 				for _, conn := range blocked {
 					blockedByTarget[conn.Target] = append(blockedByTarget[conn.Target], conn)
 				}
-				
+
 				// Generate specific recommendation for each blocked target
 				for target, conns := range blockedByTarget {
 					targetNs, targetName, _ := ParseServiceKey(target)
-					
+
 					// Build specific fix based on blocking policies
 					blockingPoliciesList := []string{}
 					for _, conn := range conns {
 						blockingPoliciesList = append(blockingPoliciesList, conn.BlockingPolicies...)
 					}
-					
+
 					// Remove duplicates
 					uniquePolicies := make(map[string]bool)
 					for _, policy := range blockingPoliciesList {
 						uniquePolicies[policy] = true
 					}
-					
+
 					policyList := []string{}
 					for policy := range uniquePolicies {
 						policyList = append(policyList, policy)
 					}
-					
+
 					ports := []string{}
 					for _, conn := range conns {
 						if conn.Port != "" {
 							ports = append(ports, conn.Port)
 						}
 					}
-					
+
 					description := fmt.Sprintf("Connection from %s/%s to %s is blocked", serviceNs, serviceName, target)
 					if len(policyList) > 0 {
 						description += fmt.Sprintf(" by policy(ies): %s", strings.Join(policyList, ", "))
@@ -568,11 +568,11 @@ var BestPractices = []NetworkingBestPractice{
 					if len(ports) > 0 {
 						description += fmt.Sprintf(" on port(s): %s", strings.Join(ports, ", "))
 					}
-					
+
 					// Generate specific policy fix
 					var fixTemplate string
 					var fixType string
-					
+
 					if topology.Infrastructure.CiliumEnabled {
 						fixType = "ciliumpolicy"
 						fixTemplate = generateCiliumPolicyForBlockedConnection(service, targetNs, targetName, ports, policyList)
@@ -580,7 +580,7 @@ var BestPractices = []NetworkingBestPractice{
 						fixType = "networkpolicy"
 						fixTemplate = generateK8sPolicyForBlockedConnection(service, targetNs, targetName, ports, policyList)
 					}
-					
+
 					recommendations = append(recommendations, Recommendation{
 						ID:          fmt.Sprintf("blocked-001-%s-to-%s", serviceKey, target),
 						Title:       fmt.Sprintf("Blocked connection: %s/%s → %s", serviceNs, serviceName, target),
@@ -604,7 +604,7 @@ var BestPractices = []NetworkingBestPractice{
 					})
 				}
 			}
-			
+
 			// Limit to top 10 most critical blocked connections
 			if len(recommendations) > 10 {
 				recommendations = recommendations[:10]
@@ -619,17 +619,17 @@ var BestPractices = []NetworkingBestPractice{
 func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) string {
 	serviceKey := ServiceKey(service.Namespace, service.Name)
 	connectivity, hasConnections := topology.Connectivity[serviceKey]
-	
+
 	// Check if Istio is enabled to adjust recommendations
 	istioNote := ""
 	if topology.Infrastructure.IstioEnabled {
 		istioNote = "# Note: This works alongside Istio AuthorizationPolicies for defense in depth\n"
 	}
-	
+
 	// Build ingress rules based on actual connections
 	ingressRules := ""
 	ingressSources := make(map[string]map[string]bool) // namespace -> port -> true
-	
+
 	// Check if service receives traffic from ingress
 	hasIngress := false
 	if topology.Ingress.KubernetesIngress != nil {
@@ -640,7 +640,7 @@ func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) strin
 			}
 		}
 	}
-	
+
 	if hasIngress {
 		ingressRules += `  # Allow from ingress controller
   - from:
@@ -657,7 +657,7 @@ func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) strin
       port: 443
 `
 	}
-	
+
 	// Analyze actual connections to build specific ingress rules
 	if hasConnections {
 		for _, conn := range connectivity.Connections {
@@ -677,7 +677,7 @@ func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) strin
 				}
 			}
 		}
-		
+
 		// Add specific ingress rules for actual connections
 		if len(ingressSources) > 0 {
 			ingressRules += `  # Allow from same namespace (based on actual connections)
@@ -706,7 +706,7 @@ func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) strin
     - podSelector: {}
 `
 	}
-	
+
 	// Build egress rules based on actual connections
 	egressRules := `  # Allow DNS
   - to:
@@ -722,7 +722,7 @@ func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) strin
     - protocol: TCP
       port: 53
 `
-	
+
 	// Analyze actual egress connections
 	if hasConnections {
 		egressTargets := make(map[string]map[string]bool) // target -> port -> true
@@ -744,7 +744,7 @@ func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) strin
 				}
 			}
 		}
-		
+
 		// Generate specific egress rules for actual connections
 		if len(egressTargets) > 0 {
 			egressRules += `  # Allow egress to connected services (based on actual traffic)
@@ -803,7 +803,7 @@ func generateK8sNetworkPolicy(service ServiceInfo, topology *TopologyData) strin
           name: ` + service.Namespace + `
 `
 	}
-	
+
 	return fmt.Sprintf(`%sapiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -826,10 +826,10 @@ egress:
 func generateCiliumNetworkPolicy(service ServiceInfo, topology *TopologyData) string {
 	serviceKey := ServiceKey(service.Namespace, service.Name)
 	connectivity, hasConnections := topology.Connectivity[serviceKey]
-	
+
 	// Build ingress rules based on actual connections
 	ingressRules := ""
-	
+
 	// Check if service receives traffic from ingress
 	hasIngress := false
 	if topology.Ingress.KubernetesIngress != nil {
@@ -840,7 +840,7 @@ func generateCiliumNetworkPolicy(service ServiceInfo, topology *TopologyData) st
 			}
 		}
 	}
-	
+
 	if hasIngress {
 		ingressRules += `  # Allow from ingress controller
   - fromEndpoints:
@@ -854,7 +854,7 @@ func generateCiliumNetworkPolicy(service ServiceInfo, topology *TopologyData) st
         protocol: TCP
 `
 	}
-	
+
 	// Analyze actual connections for ingress
 	if hasConnections {
 		ingressPorts := make(map[string]bool)
@@ -868,7 +868,7 @@ func generateCiliumNetworkPolicy(service ServiceInfo, topology *TopologyData) st
 				}
 			}
 		}
-		
+
 		if len(ingressPorts) > 0 || len(connectivity.Connections) > 0 {
 			ingressRules += `  # Allow from same namespace (based on actual connections)
   - fromEndpoints:
@@ -897,7 +897,7 @@ func generateCiliumNetworkPolicy(service ServiceInfo, topology *TopologyData) st
         app: ` + service.Name + `
 `
 	}
-	
+
 	// Build egress rules based on actual connections
 	egressRules := `  # Allow DNS
   - toEndpoints:
@@ -910,47 +910,47 @@ func generateCiliumNetworkPolicy(service ServiceInfo, topology *TopologyData) st
       - port: "53"
         protocol: TCP
 `
-	
-		// Analyze actual egress connections
-		if hasConnections {
-			egressTargets := make(map[string]map[string]bool)
-			for _, conn := range connectivity.Connections {
-				if conn.Allowed && !conn.BlockedByPolicy {
-					targetNs, targetName, _ := ParseServiceKey(conn.Target)
-					if targetNs != service.Namespace || targetName != service.Name {
-						targetKey := conn.Target
-						if egressTargets[targetKey] == nil {
-							egressTargets[targetKey] = make(map[string]bool)
-						}
-						if conn.Port != "" {
-							egressTargets[targetKey][conn.Port] = true
-						}
+
+	// Analyze actual egress connections
+	if hasConnections {
+		egressTargets := make(map[string]map[string]bool)
+		for _, conn := range connectivity.Connections {
+			if conn.Allowed && !conn.BlockedByPolicy {
+				targetNs, targetName, _ := ParseServiceKey(conn.Target)
+				if targetNs != service.Namespace || targetName != service.Name {
+					targetKey := conn.Target
+					if egressTargets[targetKey] == nil {
+						egressTargets[targetKey] = make(map[string]bool)
 					}
-				}
-			}
-			
-			if len(egressTargets) > 0 {
-				egressRules += `  # Allow egress to connected services (based on actual traffic)
-`
-				for target, ports := range egressTargets {
-					_, targetName, hasNs := ParseServiceKey(target)
-					if hasNs {
-						egressRules += fmt.Sprintf(`  - toEndpoints:
-    - matchLabels:
-        app: %s
-    toPorts:
-`, targetName)
-						for port := range ports {
-							egressRules += fmt.Sprintf(`    - ports:
-      - port: "%s"
-        protocol: TCP
-`, port)
-						}
+					if conn.Port != "" {
+						egressTargets[targetKey][conn.Port] = true
 					}
 				}
 			}
 		}
-	
+
+		if len(egressTargets) > 0 {
+			egressRules += `  # Allow egress to connected services (based on actual traffic)
+`
+			for target, ports := range egressTargets {
+				_, targetName, hasNs := ParseServiceKey(target)
+				if hasNs {
+					egressRules += fmt.Sprintf(`  - toEndpoints:
+    - matchLabels:
+        app: %s
+    toPorts:
+`, targetName)
+					for port := range ports {
+						egressRules += fmt.Sprintf(`    - ports:
+      - port: "%s"
+        protocol: TCP
+`, port)
+					}
+				}
+			}
+		}
+	}
+
 	return fmt.Sprintf(`apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -975,12 +975,12 @@ func generateTLSIngress(ing KubernetesIngressInfo, hasCertManager bool) string {
     # Or use: cert-manager.io/issuer: letsencrypt-prod (for namespace-scoped issuer)
 `
 	}
-	
+
 	hosts := strings.Join(ing.Hosts, "\n    - ")
 	if hosts == "" {
 		hosts = "example.com" // fallback
 	}
-	
+
 	return fmt.Sprintf(`apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -1207,12 +1207,12 @@ func generateK8sPolicyForBlockedConnection(source ServiceInfo, targetNs, targetN
 	} else {
 		portRules = "    # Ports: Add specific ports based on service requirements\n"
 	}
-	
+
 	policyNote := ""
 	if len(blockingPolicies) > 0 {
 		policyNote = fmt.Sprintf("# This policy allows connection blocked by: %s\n", strings.Join(blockingPolicies, ", "))
 	}
-	
+
 	if targetNs == source.Namespace {
 		// Same namespace
 		return fmt.Sprintf(`%sapiVersion: networking.k8s.io/v1
@@ -1270,12 +1270,12 @@ func generateCiliumPolicyForBlockedConnection(source ServiceInfo, targetNs, targ
 	} else {
 		portRules = "    # Ports: Add specific ports based on service requirements\n"
 	}
-	
+
 	policyNote := ""
 	if len(blockingPolicies) > 0 {
 		policyNote = fmt.Sprintf("# This policy allows connection blocked by: %s\n", strings.Join(blockingPolicies, ", "))
 	}
-	
+
 	if targetNs == source.Namespace {
 		// Same namespace
 		return fmt.Sprintf(`%sapiVersion: cilium.io/v2

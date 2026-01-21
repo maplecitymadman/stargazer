@@ -140,8 +140,8 @@ function IngressView({ namespace }: { namespace?: string }) {
         <div className="card rounded-lg p-4">
           <div className="text-xs text-[#71717a] mb-1">Blocked</div>
           <div className={`text-2xl font-bold ${
-            (topology.ingress.connections?.filter((c: any) => !c.allowed).length || 0) > 0 
-              ? 'text-[#ef4444]' 
+            (topology.ingress.connections?.filter((c: any) => !c.allowed).length || 0) > 0
+              ? 'text-[#ef4444]'
               : 'text-[#10b981]'
           }`}>
             {topology.ingress.connections?.filter((c: any) => !c.allowed).length || 0}
@@ -158,7 +158,7 @@ function IngressView({ namespace }: { namespace?: string }) {
               Ingress Traffic Details
             </h3>
           </div>
-          
+
           {/* Gateways */}
           {topology.ingress.gateways && topology.ingress.gateways.length > 0 && (
             <div className="mb-4">
@@ -208,8 +208,8 @@ function IngressView({ namespace }: { namespace?: string }) {
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {topology.ingress.connections.map((conn: any, idx: number) => (
                   <div key={idx} className={`p-3 rounded border ${
-                    conn.allowed 
-                      ? 'border-[#10b981]/30 bg-[#10b981]/5' 
+                    conn.allowed
+                      ? 'border-[#10b981]/30 bg-[#10b981]/5'
                       : 'border-[#ef4444]/30 bg-[#ef4444]/5'
                   }`}>
                     <div className="flex items-center justify-between mb-1">
@@ -217,8 +217,8 @@ function IngressView({ namespace }: { namespace?: string }) {
                         {conn.from} → {conn.to}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
-                        conn.allowed 
-                          ? 'bg-[#10b981]/20 text-[#10b981]' 
+                        conn.allowed
+                          ? 'bg-[#10b981]/20 text-[#10b981]'
                           : 'bg-[#ef4444]/20 text-[#ef4444]'
                       }`}>
                         {conn.allowed ? 'ALLOWED' : 'BLOCKED'}
@@ -313,8 +313,8 @@ function EgressView({ namespace }: { namespace?: string }) {
         <div className="card rounded-lg p-4">
           <div className="text-xs text-[#71717a] mb-1">Blocked</div>
           <div className={`text-2xl font-bold ${
-            (topology.egress.connections?.filter((c: any) => !c.allowed).length || 0) > 0 
-              ? 'text-[#ef4444]' 
+            (topology.egress.connections?.filter((c: any) => !c.allowed).length || 0) > 0
+              ? 'text-[#ef4444]'
               : 'text-[#10b981]'
           }`}>
             {topology.egress.connections?.filter((c: any) => !c.allowed).length || 0}
@@ -361,8 +361,8 @@ function EgressView({ namespace }: { namespace?: string }) {
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {topology.egress.connections.map((conn: any, idx: number) => (
                   <div key={idx} className={`p-3 rounded border ${
-                    conn.allowed 
-                      ? 'border-[#10b981]/30 bg-[#10b981]/5' 
+                    conn.allowed
+                      ? 'border-[#10b981]/30 bg-[#10b981]/5'
                       : 'border-[#ef4444]/30 bg-[#ef4444]/5'
                   }`}>
                     <div className="flex items-center justify-between mb-1">
@@ -370,8 +370,8 @@ function EgressView({ namespace }: { namespace?: string }) {
                         {conn.from} → {conn.to}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
-                        conn.allowed 
-                          ? 'bg-[#10b981]/20 text-[#10b981]' 
+                        conn.allowed
+                          ? 'bg-[#10b981]/20 text-[#10b981]'
                           : 'bg-[#ef4444]/20 text-[#ef4444]'
                       }`}>
                         {conn.allowed ? 'ALLOWED' : 'BLOCKED'}

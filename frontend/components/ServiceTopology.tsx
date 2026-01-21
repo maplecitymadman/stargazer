@@ -152,9 +152,9 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
-    
+
     const ws = new WebSocket(wsUrl);
-    
+
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -166,7 +166,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
         // Ignore parse errors
       }
     };
-    
+
     return () => {
       ws.close();
     };
@@ -230,7 +230,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
   }
 
   const services = Object.values(topology.services);
-  const selectedConnections = selectedService 
+  const selectedConnections = selectedService
     ? topology.connectivity[selectedService]?.connections || []
     : [];
 
@@ -321,7 +321,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
               {services.map((service) => {
                 const connInfo = topology.connectivity[service.name];
                 const isSelected = selectedService === service.name;
-                
+
                 return (
                   <button
                     key={service.name}
@@ -339,13 +339,13 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                         <span className="font-medium">{service.name}</span>
                         {service.has_service_mesh && (
                           <span className={`text-xs px-2 py-0.5 rounded ${
-                            service.service_mesh_type === 'istio' 
-                              ? 'bg-blue-500/20 text-blue-300' 
+                            service.service_mesh_type === 'istio'
+                              ? 'bg-blue-500/20 text-blue-300'
                               : service.service_mesh_type === 'cilium'
                               ? 'bg-purple-500/20 text-purple-300'
                               : 'bg-blue-500/20 text-blue-300'
                           }`}>
-                            {service.service_mesh_type === 'istio' ? 'Istio' : 
+                            {service.service_mesh_type === 'istio' ? 'Istio' :
                              service.service_mesh_type === 'cilium' ? 'Cilium' : 'Mesh'}
                           </span>
                         )}
@@ -438,7 +438,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                                   ? 'bg-purple-500/20 text-purple-300'
                                   : 'bg-blue-500/20 text-blue-300'
                               }`}>
-                                via {conn.service_mesh_type === 'istio' ? 'Istio' : 
+                                via {conn.service_mesh_type === 'istio' ? 'Istio' :
                                      conn.service_mesh_type === 'cilium' ? 'Cilium' : 'Mesh'}
                               </span>
                             )}
@@ -509,7 +509,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
               {topology.ingress.connections?.filter((c: any) => c.allowed).length || 0} / {topology.ingress.connections?.length || 0} allowed
             </div>
           </div>
-          
+
           {/* Gateways */}
           {topology.ingress.gateways && topology.ingress.gateways.length > 0 && (
             <div className="mb-4">
@@ -562,8 +562,8 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {topology.ingress.routes.map((route: any, idx: number) => (
                   <div key={idx} className={`p-3 rounded border ${
-                    route.allowed 
-                      ? 'border-[#10b981]/30 bg-[#10b981]/5' 
+                    route.allowed
+                      ? 'border-[#10b981]/30 bg-[#10b981]/5'
                       : 'border-[#ef4444]/30 bg-[#ef4444]/5'
                   }`}>
                     <div className="flex items-center justify-between mb-1">
@@ -571,8 +571,8 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                         {route.host}{route.path}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
-                        route.allowed 
-                          ? 'bg-[#10b981]/20 text-[#10b981]' 
+                        route.allowed
+                          ? 'bg-[#10b981]/20 text-[#10b981]'
                           : 'bg-[#ef4444]/20 text-[#ef4444]'
                       }`}>
                         {route.allowed ? 'ALLOWED' : 'BLOCKED'}
@@ -599,8 +599,8 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {topology.ingress.connections.map((conn: any, idx: number) => (
                   <div key={idx} className={`p-3 rounded border ${
-                    conn.allowed 
-                      ? 'border-[#10b981]/30 bg-[#10b981]/5' 
+                    conn.allowed
+                      ? 'border-[#10b981]/30 bg-[#10b981]/5'
                       : 'border-[#ef4444]/30 bg-[#ef4444]/5'
                   }`}>
                     <div className="flex items-center justify-between mb-1">
@@ -608,8 +608,8 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                         {conn.from} → {conn.to}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
-                        conn.allowed 
-                          ? 'bg-[#10b981]/20 text-[#10b981]' 
+                        conn.allowed
+                          ? 'bg-[#10b981]/20 text-[#10b981]'
                           : 'bg-[#ef4444]/20 text-[#ef4444]'
                       }`}>
                         {conn.allowed ? 'ALLOWED' : 'BLOCKED'}
@@ -695,8 +695,8 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {topology.egress.connections.map((conn: any, idx: number) => (
                   <div key={idx} className={`p-3 rounded border ${
-                    conn.allowed 
-                      ? 'border-[#10b981]/30 bg-[#10b981]/5' 
+                    conn.allowed
+                      ? 'border-[#10b981]/30 bg-[#10b981]/5'
                       : 'border-[#ef4444]/30 bg-[#ef4444]/5'
                   }`}>
                     <div className="flex items-center justify-between mb-1">
@@ -704,8 +704,8 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
                         {conn.from} → {conn.to}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded ${
-                        conn.allowed 
-                          ? 'bg-[#10b981]/20 text-[#10b981]' 
+                        conn.allowed
+                          ? 'bg-[#10b981]/20 text-[#10b981]'
                           : 'bg-[#ef4444]/20 text-[#ef4444]'
                       }`}>
                         {conn.allowed ? 'ALLOWED' : 'BLOCKED'}
@@ -762,7 +762,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
         <h3 className="text-lg font-semibold mb-4 text-[#e4e4e7]">Infrastructure Status</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <div className="flex items-center gap-2">
-            <Icon name={topology.infrastructure.cni ? "check" : "close"} 
+            <Icon name={topology.infrastructure.cni ? "check" : "close"}
                   className={topology.infrastructure.cni ? "text-green-400" : "text-gray-500"} />
             <div>
               <span className="text-sm text-[#71717a] block">CNI</span>
@@ -770,7 +770,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Icon name={topology.infrastructure.cilium_enabled ? "check" : "close"} 
+            <Icon name={topology.infrastructure.cilium_enabled ? "check" : "close"}
                   className={topology.infrastructure.cilium_enabled ? "text-purple-400" : "text-gray-500"} />
             <div>
               <span className="text-sm text-[#71717a] block">Cilium</span>
@@ -778,7 +778,7 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Icon name={topology.infrastructure.istio_enabled ? "check" : "close"} 
+            <Icon name={topology.infrastructure.istio_enabled ? "check" : "close"}
                   className={topology.infrastructure.istio_enabled ? "text-blue-400" : "text-gray-500"} />
             <div>
               <span className="text-sm text-[#71717a] block">Istio</span>
@@ -847,38 +847,38 @@ export default function ServiceTopology({ namespace }: ServiceTopologyProps) {
 // Custom Service Node Component
 function ServiceNode({ data }: { data: any }) {
   const { service, connInfo, hasBlocked, hasIssues } = data;
-  
+
   return (
     <div className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
-      hasBlocked 
-        ? 'bg-[#ef4444]/10 border-[#ef4444]/50 shadow-lg shadow-[#ef4444]/20' 
+      hasBlocked
+        ? 'bg-[#ef4444]/10 border-[#ef4444]/50 shadow-lg shadow-[#ef4444]/20'
         : hasIssues
         ? 'bg-[#f59e0b]/10 border-[#f59e0b]/50'
         : 'bg-[#1a1a24] border-[#3b82f6]/30 hover:border-[#3b82f6]/50'
     }`}>
       <Handle type="target" position={Position.Top} className="!bg-[#71717a]" />
       <Handle type="source" position={Position.Bottom} className="!bg-[#71717a]" />
-      
+
       <div className="flex items-center gap-2 mb-1">
-        <Icon 
-          name={hasBlocked ? "critical" : "healthy"} 
-          className={hasBlocked ? "text-[#ef4444]" : "text-[#10b981]"} 
-          size="sm" 
+        <Icon
+          name={hasBlocked ? "critical" : "healthy"}
+          className={hasBlocked ? "text-[#ef4444]" : "text-[#10b981]"}
+          size="sm"
         />
         <div className="font-semibold text-[#e4e4e7] text-sm truncate max-w-[120px]">
           {service.name}
         </div>
         {service.has_service_mesh && (
           <div className={`w-2 h-2 rounded-full ${
-            service.service_mesh_type === 'istio' 
-              ? 'bg-[#3b82f6]' 
+            service.service_mesh_type === 'istio'
+              ? 'bg-[#3b82f6]'
               : service.service_mesh_type === 'cilium'
               ? 'bg-[#8b5cf6]'
               : 'bg-[#3b82f6]'
           }`} title={service.service_mesh_type || 'mesh'} />
         )}
       </div>
-      
+
       <div className="text-xs text-[#71717a] space-y-0.5">
         <div className="flex items-center justify-between">
           <span>{service.namespace}</span>
@@ -900,11 +900,11 @@ function ServiceNode({ data }: { data: any }) {
 function GatewayNode({ data }: { data: any }) {
   const { type, name, connections } = data;
   const isIngress = type === 'ingress';
-  
+
   return (
     <div className={`relative px-4 py-3 rounded-lg border-2 bg-gradient-to-br ${
-      isIngress 
-        ? 'from-[#3b82f6]/20 to-[#3b82f6]/5 border-[#3b82f6]/50' 
+      isIngress
+        ? 'from-[#3b82f6]/20 to-[#3b82f6]/5 border-[#3b82f6]/50'
         : 'from-[#8b5cf6]/20 to-[#8b5cf6]/5 border-[#8b5cf6]/50'
     }`}>
       {isIngress ? (
@@ -912,7 +912,7 @@ function GatewayNode({ data }: { data: any }) {
       ) : (
         <Handle type="target" position={Position.Top} className="!bg-[#8b5cf6] !w-3 !h-3" />
       )}
-      
+
       <div className="flex items-center gap-2">
         <Icon name="network" className={isIngress ? "text-[#3b82f6]" : "text-[#8b5cf6]"} size="sm" />
         <div className="font-semibold text-[#e4e4e7] text-sm">
@@ -939,7 +939,7 @@ function getServiceKey(service: ServiceInfo): string {
 // Topology Graph Component with React Flow
 function TopologyGraph({ topology }: { topology: TopologyData | null }) {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  
+
   // Group services by namespace for hierarchical layout
   const servicesByNamespace = useMemo(() => {
     if (!topology) return new Map<string, ServiceInfo[]>();
@@ -952,10 +952,10 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
     });
     return grouped;
   }, [topology]);
-  
+
   const initialNodes = useMemo(() => {
     if (!topology) return [];
-    
+
     const services = Object.values(topology.services);
     const nodes: Node[] = [];
     const nodeWidth = 180;
@@ -963,11 +963,11 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
     const horizontalSpacing = 220;
     const verticalSpacing = 150;
     const startY = 100;
-    
+
     // Ingress gateway at top center
     const centerX = 600;
     let currentY = startY;
-    
+
     if (topology.ingress && (topology.ingress.gateways?.length > 0 || topology.ingress.kubernetes_ingress?.length > 0)) {
       const ingressConnections = topology.ingress.connections?.length || 0;
       nodes.push({
@@ -985,29 +985,29 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
       });
       currentY += verticalSpacing;
     }
-    
+
     // Simple grid layout - calculate optimal columns
     const totalServices = services.length;
     const maxCols = Math.min(Math.ceil(Math.sqrt(totalServices * 1.8)), 10); // Optimal columns, max 10
-    
+
     // Layout all services in a clean grid
     services.forEach((service, idx) => {
       const serviceKey = getServiceKey(service);
       const connInfo = topology.connectivity[serviceKey];
       const hasBlocked = connInfo?.blocked_from && connInfo.blocked_from.length > 0;
       const hasIssues = connInfo && (connInfo.blocked_from?.length > 0 || connInfo.connections?.some((c: ServiceConnection) => !c.allowed));
-      
+
       // Grid position
       const row = Math.floor(idx / maxCols);
       const col = idx % maxCols;
-      
+
       // Center the grid horizontally
       const gridWidth = Math.min(maxCols, totalServices - (row * maxCols)) * horizontalSpacing;
       const gridStartX = centerX - (gridWidth / 2) + (horizontalSpacing / 2);
-      
+
       const x = gridStartX + (col * horizontalSpacing);
       const y = currentY + (row * verticalSpacing);
-      
+
       nodes.push({
         id: serviceKey,
         type: 'service',
@@ -1023,11 +1023,11 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
         },
       });
     });
-    
+
     // Position egress gateway after all services
     const totalRows = Math.ceil(totalServices / maxCols);
     currentY += (totalRows * verticalSpacing) + 50;
-    
+
     // Egress gateway at bottom center
     if (topology.egress && topology.egress.gateways?.length > 0) {
       currentY += 50;
@@ -1046,27 +1046,27 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
         },
       });
     }
-    
+
     return nodes;
   }, [topology, servicesByNamespace]);
-  
+
   // Get all node IDs for edge creation
   const nodeIds = useMemo(() => {
     return new Set(initialNodes.map(n => n.id));
   }, [initialNodes]);
-  
+
   const initialEdges = useMemo(() => {
     if (!topology) return [];
-    
+
     const services = Object.values(topology.services);
     const edges: Edge[] = [];
-    
+
     // Create edges (connections) - using proper service keys
     services.forEach((sourceService) => {
       const sourceKey = getServiceKey(sourceService);
       const sourceConn = topology.connectivity[sourceKey];
       if (!sourceConn) return;
-      
+
       sourceConn.connections.forEach((conn: ServiceConnection) => {
         // Target might be in namespace/name format or just name
         let targetKey = conn.target;
@@ -1077,11 +1077,11 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
             targetKey = getServiceKey(targetService);
           }
         }
-        
+
         // Only create edge if target node exists
         if (!nodeIds.has(targetKey) && !nodeIds.has(conn.target)) return;
         const finalTargetKey = nodeIds.has(targetKey) ? targetKey : conn.target;
-        
+
         edges.push({
           id: `${sourceKey}-${finalTargetKey}`,
           source: sourceKey,
@@ -1112,7 +1112,7 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
         });
       });
     });
-    
+
     // Add ingress connections
     if (topology.ingress?.connections) {
       topology.ingress.connections.forEach((conn: any, idx: number) => {
@@ -1124,7 +1124,7 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
             targetKey = getServiceKey(targetService);
           }
         }
-        
+
         if (nodeIds.has(targetKey) || nodeIds.has(conn.to)) {
           const finalTargetKey = nodeIds.has(targetKey) ? targetKey : conn.to;
           edges.push({
@@ -1146,7 +1146,7 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
         }
       });
     }
-    
+
     // Add egress connections
     if (topology.egress?.connections) {
       topology.egress.connections.forEach((conn: any, idx: number) => {
@@ -1158,7 +1158,7 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
             sourceKey = getServiceKey(sourceService);
           }
         }
-        
+
         if (nodeIds.has(sourceKey) || nodeIds.has(conn.from)) {
           const finalSourceKey = nodeIds.has(sourceKey) ? sourceKey : conn.from;
           edges.push({
@@ -1180,24 +1180,24 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
         }
       });
     }
-    
+
     return edges;
   }, [topology, nodeIds]);
-  
+
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  
+
   useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
-  
+
   const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     setSelectedNode(prev => prev === node.id ? null : node.id);
   }, []);
-  
+
   if (!topology) return null;
-  
+
   return (
     <div className="card rounded-lg p-0 overflow-hidden">
       <div className="p-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between">
@@ -1220,7 +1220,7 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
           </div>
         </div>
       </div>
-      
+
       <div className="h-[600px] bg-[#0a0a0f]">
         <ReactFlow
           nodes={nodes}
@@ -1235,11 +1235,11 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
           defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
         >
           <Background color="#1a1a24" gap={20} size={1} />
-          <Controls 
+          <Controls
             className="bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] rounded-lg"
             showInteractive={false}
           />
-          <MiniMap 
+          <MiniMap
             className="bg-[#1a1a24] border border-[rgba(255,255,255,0.08)] rounded-lg"
             nodeColor={(node) => {
               if (node.data?.hasBlocked) return '#ef4444';
@@ -1250,7 +1250,7 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
           />
         </ReactFlow>
       </div>
-      
+
       {selectedNode && selectedNode !== 'ingress-gateway' && selectedNode !== 'egress-gateway' && (
         <div className="p-4 border-t border-[rgba(255,255,255,0.08)] bg-[#1a1a24]">
           <div className="text-sm font-semibold text-[#e4e4e7] mb-2">
@@ -1261,9 +1261,9 @@ function TopologyGraph({ topology }: { topology: TopologyData | null }) {
               // Find service by key (namespace/name format)
               const service = Object.values(topology.services).find(s => getServiceKey(s) === selectedNode);
               if (!service) return null;
-              
+
               const connInfo = topology.connectivity[selectedNode];
-              
+
               return (
                 <>
                   <div>Namespace: {service.namespace}</div>
